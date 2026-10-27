@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "option-pricer"
+version = "0.1.0"
+description = "European option pricing and Greeks under Black-Scholes-Merton"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+# The Black-Scholes core is stdlib-only; simulation adds numpy/matplotlib.
+sim = ["numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7", "plotly>=5.18"]
+dev = ["pytest>=8.0", "numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7", "plotly>=5.18"]
+
+[project.scripts]
+option-pricer = "option_pricer.cli:main"
+gbm-demo = "option_pricer.gbm:main"
+greek-surface = "option_pricer.surface:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/option_pricer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

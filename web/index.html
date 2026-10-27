@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Root T — Monte Carlo vs Black–Scholes</title>
+<meta name="description" content="A live 3D option price surface: 100,000 simulated futures against the Black–Scholes formula, with a volatility slider.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="vendor/katex.min.css">
+<style>
+:root{
+  --bg:#f6f4ee; --panel:#fffdf8; --ink:#1c1b18; --muted:#6a675f; --line:#e2ddd0;
+  --accent:#1f4fd1; --accent-soft:#e3e9fb; --warn:#b4471f;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11120f; --panel:#191a16; --ink:#ece9e0; --muted:#9a968b; --line:#2c2d27;
+    --accent:#7d9cff; --accent-soft:#1f2640; --warn:#f0875c;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+header{padding:56px 0 24px}
+.kicker{font:500 12px/1 "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h1{font:700 clamp(40px,7vw,76px)/1 Fraunces,serif;margin:14px 0 16px;letter-spacing:-.02em}
+h1 .rad{color:var(--accent)}
+.lede{font-size:clamp(17px,2.2vw,20px);max-width:680px;color:var(--muted);margin:0}
+.lede b{color:var(--ink);font-weight:600}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.controls{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.label{font:500 11px/1 "IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);font:500 14px Inter,sans-serif;padding:7px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.sigma{flex:1 1 260px;display:flex;align-items:center;gap:12px}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.sigval{font:500 18px "IBM Plex Mono",monospace;min-width:52px;text-align:right}
+.btn{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:9px;padding:7px 12px;font:500 14px Inter,sans-serif;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+#plot{width:100%;height:min(68vh,620px);min-height:420px}
+.status{font:400 12px "IBM Plex Mono",monospace;color:var(--muted);padding:0 18px 12px}
+
+.readout{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
+.cell{padding:16px 18px}
+.cell+.cell{border-left:1px solid var(--line)}
+.cell .v{font:500 24px "IBM Plex Mono",monospace;margin-top:6px}
+.cell .s{font-size:13px;color:var(--muted)}
+@media (max-width:720px){
+  .readout{grid-template-columns:1fr 1fr}
+  .cell:nth-child(3){border-left:0}
+  .cell:nth-child(n+3){border-top:1px solid var(--line)}
+}
+
+.hint{margin:14px 2px 0;font-size:14px;color:var(--muted)}
+.hint b{color:var(--ink)}
+
+section.steps{padding:64px 0 24px}
+section.steps h2{font:700 clamp(28px,4vw,40px)/1.1 Fraunces,serif;margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 32px;max-width:640px}
+.step{display:grid;grid-template-columns:64px 1fr;gap:8px 20px;padding:28px 0;border-top:1px solid var(--line)}
+.num{font:700 40px/1 Fraunces,serif;color:var(--accent)}
+.step h3{font:600 20px/1.3 Inter,sans-serif;margin:0 0 8px}
+.step p{margin:0 0 12px;max-width:720px}
+.eq{overflow-x:auto;padding:4px 0 8px}
+.aside{font-size:14px;color:var(--muted);border-left:3px solid var(--accent-soft);padding-left:12px}
+@media (max-width:600px){.step{grid-template-columns:1fr}.num{font-size:30px}}
+footer{padding:40px 0 64px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);margin-top:24px}
+footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="kicker">European call · S₀ = 100 · r = 5%</div>
+  <h1><span class="rad">√</span>T</h1>
+  <p class="lede">Two ways to price an option. One is a formula from 1973. The other throws <b>100,000 random futures</b> at the problem and averages. Drag the volatility slider and watch them agree.</p>
+</header>
+
+<div class="panel">
+  <div class="controls">
+    <div class="group">
+      <span class="label">Surface</span>
+      <div class="seg" id="view">
+        <button data-v="mc" aria-pressed="true">Monte Carlo</button>
+        <button data-v="bs" aria-pressed="false">Black–Scholes</button>
+        <button data-v="diff" aria-pressed="false">MC − BS</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">Simulations</span>
+      <div class="seg" id="nsims">
+        <button data-n="10000" aria-pressed="false">10k</button>
+        <button data-n="100000" aria-pressed="true">100k</button>
+        <button data-n="1000000" aria-pressed="false">1M</button>
+      </div>
+      <button class="btn" id="reseed" title="Draw a fresh set of random numbers">New draw</button>
+    </div>
+    <div class="sigma">
+      <span class="label">Volatility σ</span>
+      <input type="range" id="sigma" min="0.10" max="0.50" step="0.05" value="0.20" aria-label="Volatility">
+      <span class="sigval" id="sigval">20%</span>
+      <button class="btn" id="play">▶ Sweep</button>
+    </div>
+  </div>
+  <div id="plot"></div>
+  <div class="status" id="status">computing…</div>
+  <div class="readout">
+    <div class="cell"><div class="label">MC price · K=100, T=1</div><div class="v" id="r-mc">—</div><div class="s" id="r-se">± standard error</div></div>
+    <div class="cell"><div class="label">Black–Scholes</div><div class="v" id="r-bs">—</div><div class="s">exact formula</div></div>
+    <div class="cell"><div class="label">Gap</div><div class="v" id="r-gap">—</div><div class="s" id="r-gap-se">in standard errors</div></div>
+    <div class="cell"><div class="label">Worst gap on grid</div><div class="v" id="r-worst">—</div><div class="s">max |MC − BS|, 800 points</div></div>
+  </div>
+</div>
+<p class="hint">Try this: switch to <b>MC − BS</b>, then flip between 10k and 1M simulations. The z-axis stays fixed, so the noise visibly shrinks — by about <b>√100 = 10×</b>.</p>
+
+<section class="steps">
+  <h2>How it works</h2>
+  <p class="sub">Four ideas, each built on the one before. Nothing here needs more than IB Maths AA HL.</p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div>
+      <h3>Randomness grows like √T, not T</h3>
+      <p>Take a random walk of <i>N</i> steps of ±1. Each step has variance 1, and variances of independent steps add, so after <i>N</i> steps the spread is:</p>
+      <div class="eq" data-tex="\operatorname{Var}(S_N)=\sum_{i=1}^{N}\operatorname{Var}(X_i)=N \quad\Longrightarrow\quad \sigma(S_N)=\sqrt{N}"></div>
+      <p class="aside">This is why the site is called √T. Every bit of uncertainty below scales with the square root of time — the same law as diffusing particles in physics.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div>
+      <h3>Stocks move in percentages: geometric Brownian motion</h3>
+      <p>Prices compound, so the randomness goes in the exponent. Summing many small returns gives a normal distribution (central limit theorem), so the whole year collapses into one draw <i>Z</i>:</p>
+      <div class="eq" data-tex="S_T = S_0\exp\!\Big(\big(r-\tfrac{\sigma^2}{2}\big)T+\sigma\sqrt{T}\,Z\Big),\qquad Z\sim\mathcal N(0,1)"></div>
+      <p class="aside">The −σ²/2 corrects for volatility drag (+10% then −10% leaves you at 0.99), so the expected price grows at exactly e<sup>rT</sup>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div>
+      <h3>Price = discounted average payoff</h3>
+      <p>A call pays max(S<sub>T</sub> − K, 0). Simulate <i>n</i> futures, pay out in each, average, discount back to today. The law of large numbers does the rest:</p>
+      <div class="eq" data-tex="C \approx e^{-rT}\,\frac{1}{n}\sum_{i=1}^{n}\max\!\big(S_T^{(i)}-K,\,0\big),\qquad \text{error}\propto\frac{1}{\sqrt n}"></div>
+      <p class="aside">The √ law again, now working for you: 100× more simulations buys 10× more accuracy. That's the noise you see shrink in the MC − BS view.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">4</div>
+    <div>
+      <h3>Check against the exact answer</h3>
+      <p>For this option there is a closed form, the Black–Scholes formula. If the simulation is right, the gap between the two is pure noise — a flat, fuzzy sheet near zero with no tilt or bump.</p>
+      <div class="eq" data-tex="C_{BS}=S_0\,\Phi(d_1)-Ke^{-rT}\Phi(d_2),\quad d_{1,2}=\frac{\ln(S_0/K)+(r\pm\frac{\sigma^2}{2})T}{\sigma\sqrt T}"></div>
+      <p class="aside">Why price rises with σ everywhere: wilder outcomes help on the upside, and the downside is capped at zero. The bulge is biggest near K = 100, where the outcome is most uncertain.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">+</div>
+    <div>
+      <h3>Two engineering tricks</h3>
+      <p><b>Common random numbers.</b> The same <i>Z</i> draws are reused for every σ and every T, so moving the slider changes only σ — the surface morphs smoothly instead of shimmering.</p>
+      <p><b>Sort once.</b> S<sub>T</sub> rises with <i>Z</i>, so sorting <i>Z</i> once sorts every future. With running sums, each of the 800 grid points costs a binary search instead of a pass over all simulations — which is how a million paths per frame fits in your browser.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Built by Gerald Chen as a learning project — originally in Python (NumPy + Plotly), ported here to run live in the browser. Grid: 40 strikes (60–140) × 20 maturities (0.1–2 years).
+</footer>
+</div>
+
+<script src="vendor/plotly-gl3d.min.js"></script>
+<script src="vendor/katex.min.js"></script>
+<script src="engine.js"></script>
+<script>
+(function(){
+  "use strict";
+  const R = window.RootT;
+  const S0 = 100, r = 0.05;
+  const strikes = R.linspace(60, 140, 40);
+  const mats = R.linspace(0.1, 2.0, 20);
+  const PRICE_MAX = R.bsCall(S0, 60, 2, r, 0.5) * 1.04; // pinned across all σ
+  const DIFF_MAX = 0.35;                                 // pinned across all n
+
+  const state = { view: "mc", n: 100000, sigma: 0.20, seed: 20260904, z: null, buf: null };
+
+  // KaTeX
+  document.querySelectorAll("[data-tex]").forEach(el => {
+    try { katex.render(el.dataset.tex, el, { displayMode: true, throwOnError: false }); }
+    catch (e) { el.textContent = el.dataset.tex; }
+  });
+
+  if (typeof Plotly === "undefined") {
+    document.getElementById("status").textContent = "Chart library failed to load. Try refreshing the page.";
+    return;
+  }
+
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const $ = id => document.getElementById(id);
+
+  function draw() {
+    if (!state.z || state.z.length !== state.n) {
+      state.z = R.sortedNormals(state.n, state.seed);
+      state.buf = R.makeBuffers(state.n);
+    }
+    const t0 = performance.now();
+    const mc = [], bs = [], diff = [];
+    let worst = 0;
+    for (let i = 0; i < mats.length; i++) {
+      const T = mats[i];
+      const { prices } = R.mcSlice(state.z, S0, r, state.sigma, T, strikes, state.buf);
+      const rowM = [], rowB = [], rowD = [];
+      for (let k = 0; k < strikes.length; k++) {
+        const b = R.bsCall(S0, strikes[k], T, r, state.sigma);
+        rowM.push(prices[k]); rowB.push(b); rowD.push(prices[k] - b);
+        worst = Math.max(worst, Math.abs(prices[k] - b));
+      }
+      mc.push(rowM); bs.push(rowB); diff.push(rowD);
+    }
+    const atm = R.mcSlice(state.z, S0, r, state.sigma, 1, [100], state.buf);
+    const bsAtm = R.bsCall(S0, 100, 1, r, state.sigma);
+    const ms = performance.now() - t0;
+
+    const ink = css("--ink"), line = css("--line"), muted = css("--muted");
+    const isDiff = state.view === "diff";
+    const z = state.view === "mc" ? mc : state.view === "bs" ? bs : diff;
+    const label = { mc: "MC price", bs: "BS price", diff: "MC − BS" }[state.view];
+    // Same palettes as the Python version (surface_mc.py): one blue ramp for
+    // prices, and a diverging blue / grey / red scale for the signed error.
+    const PRICE_SCALE = [[0, "#cde2fb"], [1/6, "#9ec5f4"], [2/6, "#6da7ec"], [3/6, "#3987e5"],
+                         [4/6, "#2a78d6"], [5/6, "#1c5cab"], [1, "#0d366b"]];
+    const ERROR_SCALE = [[0, "#0d366b"], [0.25, "#3987e5"], [0.5, "#f0efec"], [0.75, "#e34948"], [1, "#7d2020"]];
+    const scale = isDiff ? ERROR_SCALE : PRICE_SCALE;
+    // Colours stretch to the largest error on screen so the sign of the error
+    // is always visible; the z-axis stays fixed so the noise visibly shrinks.
+    const errSpan = Math.max(worst, 1e-6);
+    const axis = t => ({ title: { text: t, font: { color: muted, size: 12 } }, gridcolor: line, zerolinecolor: line,
+      tickfont: { color: muted, size: 11 }, backgroundcolor: "rgba(0,0,0,0)", showbackground: true });
+
+    const trace = {
+      type: "surface", x: Array.from(strikes), y: Array.from(mats), z,
+      colorscale: scale, cmin: isDiff ? -errSpan : 0, cmax: isDiff ? errSpan : PRICE_MAX,
+      showscale: true,
+      colorbar: { title: { text: isDiff ? "MC − BS" : "price", side: "right", font: { color: muted, size: 12 } },
+                  tickfont: { color: muted, size: 11 }, outlinewidth: 0, len: 0.7, thickness: 14 },
+      hovertemplate: "K %{x:.0f}<br>T %{y:.2f}y<br>" + label + " %{z:.4f}<extra></extra>",
+      contours: { z: { show: false } }
+    };
+    const layout = {
+      paper_bgcolor: "rgba(0,0,0,0)", margin: { l: 0, r: 0, t: 0, b: 0 },
+      font: { family: "Inter, sans-serif", color: ink },
+      scene: {
+        xaxis: axis("strike K"), yaxis: axis("years to expiry T"),
+        zaxis: Object.assign(axis(isDiff ? "MC − BS" : "call price"),
+          { range: isDiff ? [-DIFF_MAX, DIFF_MAX] : [0, PRICE_MAX] }),
+        camera: { eye: { x: 1.6, y: -1.6, z: 0.75 } },
+        aspectmode: "manual", aspectratio: { x: 1.2, y: 1, z: 0.7 }
+      },
+      uirevision: "keep"
+    };
+    Plotly.react("plot", [trace], layout, { displaylogo: false, responsive: true,
+      modeBarButtonsToRemove: ["toImage", "resetCameraLastSave3d"] });
+
+    const se = atm.ses[0], mcA = atm.prices[0];
+    $("r-mc").textContent = mcA.toFixed(3);
+    $("r-se").textContent = "± " + se.toFixed(3) + " standard error";
+    $("r-bs").textContent = bsAtm.toFixed(3);
+    const gap = mcA - bsAtm;
+    $("r-gap").textContent = (gap >= 0 ? "+" : "") + gap.toFixed(3);
+    $("r-gap-se").textContent = (Math.abs(gap) / se).toFixed(2) + " standard errors";
+    $("r-worst").textContent = worst.toFixed(3);
+    $("status").textContent = `${state.n.toLocaleString()} simulations × 20 maturities × 40 strikes · computed in ${ms.toFixed(0)} ms`;
+  }
+
+  function safeDraw() {
+    try { draw(); }
+    catch (e) { $("status").textContent = "Something went wrong drawing the chart: " + e.message; console.error(e); }
+  }
+  function schedule() { $("status").textContent = "computing…"; requestAnimationFrame(() => setTimeout(safeDraw, 0)); }
+
+  function seg(id, attr, key, parse) {
+    $(id).addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+      state[key] = parse(b.dataset[attr]); schedule();
+    });
+  }
+  seg("view", "v", "view", v => v);
+  seg("nsims", "n", "n", v => parseInt(v, 10));
+
+  const slider = $("sigma");
+  slider.addEventListener("input", () => {
+    state.sigma = Math.round(parseFloat(slider.value) * 100) / 100;
+    $("sigval").textContent = Math.round(state.sigma * 100) + "%";
+    schedule();
+  });
+  $("reseed").addEventListener("click", () => { state.seed = (Math.random() * 2 ** 31) | 0; state.z = null; schedule(); });
+
+  let timer = null;
+  $("play").addEventListener("click", () => {
+    if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶ Sweep"; return; }
+    $("play").textContent = "❚❚ Stop";
+    let dir = 1;
+    timer = setInterval(() => {
+      let v = Math.round(parseFloat(slider.value) * 100) + 5 * dir;
+      if (v > 50) { v = 45; dir = -1; } else if (v < 10) { v = 15; dir = 1; }
+      slider.value = (v / 100).toFixed(2); slider.dispatchEvent(new Event("input"));
+    }, 450);
+  });
+
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule);
+  schedule();
+})();
+</script>
+</body>
+</html>
