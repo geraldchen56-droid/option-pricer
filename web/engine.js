@@ -96,5 +96,19 @@
     return out;
   }
 
-  global.RootT = { sortedNormals, normCdf, bsCall, mcSlice, makeBuffers, linspace };
+  // Standard normal generator from a seeded uniform source (Box–Muller, both halves used).
+  function gaussian(rand) {
+    let spare = null;
+    return function () {
+      if (spare !== null) { const s = spare; spare = null; return s; }
+      let u = rand();
+      if (u < 1e-300) u = 1e-300;
+      const v = rand();
+      const rad = Math.sqrt(-2 * Math.log(u));
+      spare = rad * Math.sin(2 * Math.PI * v);
+      return rad * Math.cos(2 * Math.PI * v);
+    };
+  }
+
+  global.RootT = { mulberry32, gaussian, sortedNormals, normCdf, bsCall, mcSlice, makeBuffers, linspace };
 })(typeof window !== "undefined" ? window : globalThis);

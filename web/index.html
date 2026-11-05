@@ -3,323 +3,843 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Root T — Monte Carlo vs Black–Scholes</title>
-<meta name="description" content="A live 3D option price surface: 100,000 simulated futures against the Black–Scholes formula, with a volatility slider.">
+<title>Root T: pricing an option by simulation</title>
+<meta name="description" content="A visual introduction to Monte Carlo option pricing, in five chapters: random walks, stock prices, averaging payoffs, convergence, and the full price surface against Black–Scholes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@200;300;400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/katex.min.css">
 <style>
 :root{
-  --bg:#f6f4ee; --panel:#fffdf8; --ink:#1c1b18; --muted:#6a675f; --line:#e2ddd0;
-  --accent:#1f4fd1; --accent-soft:#e3e9fb; --warn:#b4471f;
+  --paper:#ffffff; --ink:#2c2c2e; --mute:#7c7c82; --rule:#e4e4e7; --soft:#f4f4f5;
+  --c1:#e14d78; --c2:#e8930c; --c3:#23996f; --c4:#2d78cc; --c5:#7657c0;
+  --c:var(--ink);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#11120f; --panel:#191a16; --ink:#ece9e0; --muted:#9a968b; --line:#2c2d27;
-    --accent:#7d9cff; --accent-soft:#1f2640; --warn:#f0875c;
+    --paper:#1c1d20; --ink:#e8e8ea; --mute:#9d9da4; --rule:#34353a; --soft:#25262a;
+    --c1:#f06f97; --c2:#f4ac45; --c3:#41c093; --c4:#5b9be4; --c5:#9a82da;color-scheme:dark;
   }
 }
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif}
-.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
-header{padding:56px 0 24px}
-.kicker{font:500 12px/1 "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
-h1{font:700 clamp(40px,7vw,76px)/1 Fraunces,serif;margin:14px 0 16px;letter-spacing:-.02em}
-h1 .rad{color:var(--accent)}
-.lede{font-size:clamp(17px,2.2vw,20px);max-width:680px;color:var(--muted);margin:0}
-.lede b{color:var(--ink);font-weight:600}
-
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
-.controls{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
-.group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.label{font:500 11px/1 "IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-.seg button{border:0;background:transparent;color:var(--ink);font:500 14px Inter,sans-serif;padding:7px 12px;cursor:pointer}
-.seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
-.sigma{flex:1 1 260px;display:flex;align-items:center;gap:12px}
-input[type=range]{flex:1;accent-color:var(--accent)}
-.sigval{font:500 18px "IBM Plex Mono",monospace;min-width:52px;text-align:right}
-.btn{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:9px;padding:7px 12px;font:500 14px Inter,sans-serif;cursor:pointer}
-.btn:hover{border-color:var(--accent)}
-#plot{width:100%;height:min(68vh,620px);min-height:420px}
-.status{font:400 12px "IBM Plex Mono",monospace;color:var(--muted);padding:0 18px 12px}
-
-.readout{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
-.cell{padding:16px 18px}
-.cell+.cell{border-left:1px solid var(--line)}
-.cell .v{font:500 24px "IBM Plex Mono",monospace;margin-top:6px}
-.cell .s{font-size:13px;color:var(--muted)}
-@media (max-width:720px){
-  .readout{grid-template-columns:1fr 1fr}
-  .cell:nth-child(3){border-left:0}
-  .cell:nth-child(n+3){border-top:1px solid var(--line)}
+:root[data-theme="dark"]{
+  --paper:#1c1d20; --ink:#e8e8ea; --mute:#9d9da4; --rule:#34353a; --soft:#25262a;
+  --c1:#f06f97; --c2:#f4ac45; --c3:#41c093; --c4:#5b9be4; --c5:#9a82da;color-scheme:dark;
 }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:400 18px/1.6 "Source Sans 3","Source Sans Pro",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:inherit}
+.wrap{max-width:1160px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (min-width:700px){.wrap{padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px))}}
+:focus-visible{outline:2px solid var(--c);outline-offset:3px;border-radius:2px}
 
-.hint{margin:14px 2px 0;font-size:14px;color:var(--muted)}
-.hint b{color:var(--ink)}
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--paper);border-bottom:1px solid var(--rule)}
+.bar .wrap{display:flex;align-items:center;justify-content:space-between;height:52px}
+.brand{font-weight:600;font-size:17px;text-decoration:none;letter-spacing:.01em}
+.dots{display:flex;gap:6px;list-style:none;margin:0;padding:0}
+.dots a{display:flex;align-items:center;gap:8px;text-decoration:none;font-size:15px;color:var(--mute);padding:6px 8px;border-radius:4px}
+.dots a i{width:10px;height:10px;border-radius:50%;background:var(--c);opacity:.35;transition:opacity .2s}
+.dots a span{display:none}
+.dots a[aria-current="true"]{color:var(--ink)}
+.dots a[aria-current="true"] i,.dots a:hover i{opacity:1}
+@media (min-width:1000px){.dots a[aria-current="true"] span{display:inline}}
 
-section.steps{padding:64px 0 24px}
-section.steps h2{font:700 clamp(28px,4vw,40px)/1.1 Fraunces,serif;margin:0 0 8px;letter-spacing:-.01em}
-.sub{color:var(--muted);margin:0 0 32px;max-width:640px}
-.step{display:grid;grid-template-columns:64px 1fr;gap:8px 20px;padding:28px 0;border-top:1px solid var(--line)}
-.num{font:700 40px/1 Fraunces,serif;color:var(--accent)}
-.step h3{font:600 20px/1.3 Inter,sans-serif;margin:0 0 8px}
-.step p{margin:0 0 12px;max-width:720px}
-.eq{overflow-x:auto;padding:4px 0 8px}
-.aside{font-size:14px;color:var(--muted);border-left:3px solid var(--accent-soft);padding-left:12px}
-@media (max-width:600px){.step{grid-template-columns:1fr}.num{font-size:30px}}
-footer{padding:40px 0 64px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);margin-top:24px}
-footer a{color:var(--accent)}
+/* hero */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--rule)}
+#hero-walk{position:absolute;inset:0;width:100%;height:100%}
+.hero .wrap{position:relative;min-height:min(78vh,720px);display:flex;flex-direction:column;justify-content:center;padding-top:72px;padding-bottom:72px}
+.hero h1{text-wrap:balance;font-weight:200;font-size:clamp(68px,13vw,156px);line-height:.95;margin:0 0 20px;letter-spacing:-.025em}
+.hero p{font-size:clamp(19px,2.3vw,23px);font-weight:300;max-width:34rem;margin:0;color:var(--ink)}
+.hero .start{margin-top:32px;align-self:flex-start}
+@media (max-width:899px){.hero .wrap{padding-bottom:140px}}
+
+/* chapter list */
+.contents{padding-top:88px;padding-bottom:40px}
+.contents h2{font-weight:300;font-size:clamp(30px,3.6vw,40px);margin:0 0 28px}
+.toc{list-style:none;margin:0;padding:0;display:grid;gap:0;grid-template-columns:1fr}
+@media (min-width:820px){.toc{grid-template-columns:1fr 1fr;column-gap:56px}}
+.toc a{display:grid;grid-template-columns:56px 1fr;gap:4px 16px;padding:22px 0;border-top:1px solid var(--rule);text-decoration:none}
+.toc .n{grid-row:span 2;font-weight:200;font-size:46px;line-height:1;color:var(--c)}
+.toc b{font-weight:600;font-size:20px}
+.toc small{font-size:16px;color:var(--mute);line-height:1.45}
+.toc a:hover b{text-decoration:underline;text-decoration-color:var(--c);text-decoration-thickness:2px;text-underline-offset:4px}
+
+/* chapters */
+.chapter{padding-top:96px;padding-bottom:104px;border-top:1px solid var(--rule)}
+.ch-head{display:flex;align-items:baseline;gap:20px;margin-bottom:40px}
+.ch-head .n{font-weight:200;font-size:clamp(56px,7vw,84px);line-height:.9;color:var(--c)}
+.ch-head h2{font-weight:300;font-size:clamp(32px,4.4vw,52px);line-height:1.08;margin:0;letter-spacing:-.01em}
+.ch-body{display:grid;grid-template-columns:1fr;gap:40px}
+@media (min-width:940px){.ch-body{grid-template-columns:minmax(0,27rem) minmax(0,1fr);gap:64px}.prose{position:sticky;top:84px;align-self:start}}
+.prose p{margin:0 0 18px}
+.ch-body.wide{grid-template-columns:1fr;gap:28px}
+.ch-body.wide .prose{position:static;display:grid;grid-template-columns:1fr;column-gap:56px}
+@media (min-width:940px){.ch-body.wide .prose{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ch-body.wide .prose .eq{grid-column:1/-1}}
+.prose .note{font-size:16px;color:var(--mute)}
+.eq{overflow-x:auto;overflow-y:hidden;margin:4px 0 18px;padding:2px 0;font-size:.94em}
+.eq .katex-display{margin:0;text-align:left}
+.eq .katex-display>.katex{text-align:left}
+
+.viz canvas{display:block;width:100%;height:380px}
+@media (max-width:600px){.viz canvas{height:290px}}
+#plot{width:100%;height:min(72vh,660px);min-height:380px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;margin-top:18px}
+.field{display:flex;align-items:center;gap:12px;font-size:16px;color:var(--mute)}
+.field.grow{flex:1 1 240px}
+.field output{color:var(--ink);min-width:3.2em}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--c);height:28px}
+.opts{display:inline-flex;gap:16px}
+.opts button{background:none;border:0;padding:4px 0;font:inherit;font-size:16px;color:var(--mute);cursor:pointer}
+.opts button:hover{color:var(--ink)}
+.opts button[aria-pressed="true"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--c)}
+.act{font:inherit;font-size:16px;font-weight:600;color:var(--ink);background:transparent;border:1.5px solid var(--c);
+  border-radius:3px;padding:6px 14px;cursor:pointer}
+.act:hover{background:color-mix(in srgb,var(--c) 14%,transparent)}
+.act:disabled{opacity:.4;cursor:default;background:transparent}
+.out{margin:18px 0 0;font-size:17px;min-height:3.2em;max-width:44rem}
+.out b{font-weight:600}
+.status{font-size:14px;color:var(--mute);margin-top:6px}
+
+footer{border-top:1px solid var(--rule);padding:40px 0 72px;color:var(--mute);font-size:16px}
+footer p{margin:0 0 8px;max-width:44rem}
 </style>
 <script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)};</script>
 <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <div class="kicker">European call · S₀ = 100 · r = 5%</div>
-  <h1><span class="rad">√</span>T</h1>
-  <p class="lede">Two ways to price an option. One is a formula from 1973. The other throws <b>100,000 random futures</b> at the problem and averages. Drag the volatility slider and watch them agree.</p>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="#top">Root T</a>
+    <nav aria-label="Chapters">
+      <ol class="dots">
+        <li><a href="#ch1" style="--c:var(--c1)"><i></i><span>Random walks</span></a></li>
+        <li><a href="#ch2" style="--c:var(--c2)"><i></i><span>Stock prices</span></a></li>
+        <li><a href="#ch3" style="--c:var(--c3)"><i></i><span>Averaging payoffs</span></a></li>
+        <li><a href="#ch4" style="--c:var(--c4)"><i></i><span>Convergence</span></a></li>
+        <li><a href="#ch5" style="--c:var(--c5)"><i></i><span>The full surface</span></a></li>
+      </ol>
+    </nav>
+  </div>
 </header>
 
-<div class="panel">
-  <div class="controls">
-    <div class="group">
-      <span class="label">Surface</span>
-      <div class="seg" id="view">
-        <button data-v="mc" aria-pressed="true">Monte Carlo</button>
-        <button data-v="bs" aria-pressed="false">Black–Scholes</button>
-        <button data-v="diff" aria-pressed="false">MC − BS</button>
+<main id="top">
+<section class="hero" style="--c:var(--c1)">
+  <canvas id="hero-walk" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <h1>Root T</h1>
+    <p>An option can be priced with a formula, or by simulating thousands of possible futures and averaging what it pays. These five chapters build the second way from a coin flip upwards, then test it against the first.</p>
+    <a class="act start" href="#ch1">Start with chapter 1</a>
+  </div>
+</section>
+
+<section class="contents wrap" aria-labelledby="contents-h">
+  <h2 id="contents-h">Chapters</h2>
+  <ol class="toc">
+    <li><a href="#ch1" style="--c:var(--c1)"><span class="n">1</span><b>Random walks</b><small>Why uncertainty grows with the square root of time.</small></a></li>
+    <li><a href="#ch2" style="--c:var(--c2)"><span class="n">2</span><b>Stock prices</b><small>Geometric Brownian motion, and the small correction that keeps its average honest.</small></a></li>
+    <li><a href="#ch3" style="--c:var(--c3)"><span class="n">3</span><b>Averaging payoffs</b><small>Price a call by simulating its future and averaging what it pays.</small></a></li>
+    <li><a href="#ch4" style="--c:var(--c4)"><span class="n">4</span><b>Convergence</b><small>Seven path counts, twenty seeds, and what each extra digit of accuracy costs.</small></a></li>
+    <li><a href="#ch5" style="--c:var(--c5)"><span class="n">5</span><b>The full surface</b><small>800 prices at once, checked against the Black–Scholes formula.</small></a></li>
+  </ol>
+</section>
+
+<!-- 1 -->
+<section class="chapter" id="ch1" style="--c:var(--c1)" aria-labelledby="h1">
+  <div class="wrap">
+    <div class="ch-head"><span class="n">1</span><h2 id="h1">Random walks</h2></div>
+    <div class="ch-body">
+      <div class="prose">
+        <p>Flip a coin. Heads, step up one; tails, step down one. Each step has variance 1, and the variances of independent steps add, so after <i>n</i> steps:</p>
+        <div class="eq" data-tex="\begin{aligned}\operatorname{Var}(S_n)&=\sum_{i=1}^{n}\operatorname{Var}(X_i)=n\\ \sigma(S_n)&=\sqrt{n}\end{aligned}"></div>
+        <p>The walkers spread out, but slowly. Four times as many steps only doubles the spread.</p>
+        <p class="note">This is where the name comes from. Everything that follows, from stock prices to simulation error, scales with a square root.</p>
       </div>
-    </div>
-    <div class="group">
-      <span class="label">Simulations</span>
-      <div class="seg" id="nsims">
-        <button data-n="10000" aria-pressed="false">10k</button>
-        <button data-n="100000" aria-pressed="true">100k</button>
-        <button data-n="1000000" aria-pressed="false">1M</button>
+      <div class="viz">
+        <canvas id="walk" role="img" aria-label="300 random walks fanning out between curves at plus and minus the square root of n"></canvas>
+        <div class="ctl">
+          <label class="field grow">Steps <input type="range" id="steps" min="10" max="400" step="10" value="100"><output id="steps-v">100</output></label>
+          <button class="act" id="walk-again">Walk again</button>
+        </div>
+        <p class="out" id="walk-out" aria-live="polite"></p>
       </div>
-      <button class="btn" id="reseed" title="Draw a fresh set of random numbers">New draw</button>
-    </div>
-    <div class="sigma">
-      <span class="label">Volatility σ</span>
-      <input type="range" id="sigma" min="0.10" max="0.50" step="0.05" value="0.20" aria-label="Volatility">
-      <span class="sigval" id="sigval">20%</span>
-      <button class="btn" id="play">▶ Sweep</button>
-    </div>
-  </div>
-  <div id="plot"></div>
-  <div class="status" id="status">computing…</div>
-  <div class="readout">
-    <div class="cell"><div class="label">MC price · K=100, T=1</div><div class="v" id="r-mc">—</div><div class="s" id="r-se">± standard error</div></div>
-    <div class="cell"><div class="label">Black–Scholes</div><div class="v" id="r-bs">—</div><div class="s">exact formula</div></div>
-    <div class="cell"><div class="label">Gap</div><div class="v" id="r-gap">—</div><div class="s" id="r-gap-se">in standard errors</div></div>
-    <div class="cell"><div class="label">Worst gap on grid</div><div class="v" id="r-worst">—</div><div class="s">max |MC − BS|, 800 points</div></div>
-  </div>
-</div>
-<p class="hint">Try this: switch to <b>MC − BS</b>, then flip between 10k and 1M simulations. The z-axis stays fixed, so the noise visibly shrinks — by about <b>√100 = 10×</b>.</p>
-
-<section class="steps">
-  <h2>How it works</h2>
-  <p class="sub">Four ideas, each built on the one before. Nothing here needs more than IB Maths AA HL.</p>
-
-  <div class="step">
-    <div class="num">1</div>
-    <div>
-      <h3>Randomness grows like √T, not T</h3>
-      <p>Take a random walk of <i>N</i> steps of ±1. Each step has variance 1, and variances of independent steps add, so after <i>N</i> steps the spread is:</p>
-      <div class="eq" data-tex="\operatorname{Var}(S_N)=\sum_{i=1}^{N}\operatorname{Var}(X_i)=N \quad\Longrightarrow\quad \sigma(S_N)=\sqrt{N}"></div>
-      <p class="aside">This is why the site is called √T. Every bit of uncertainty below scales with the square root of time — the same law as diffusing particles in physics.</p>
-    </div>
-  </div>
-
-  <div class="step">
-    <div class="num">2</div>
-    <div>
-      <h3>Stocks move in percentages: geometric Brownian motion</h3>
-      <p>Prices compound, so the randomness goes in the exponent. Summing many small returns gives a normal distribution (central limit theorem), so the whole year collapses into one draw <i>Z</i>:</p>
-      <div class="eq" data-tex="S_T = S_0\exp\!\Big(\big(r-\tfrac{\sigma^2}{2}\big)T+\sigma\sqrt{T}\,Z\Big),\qquad Z\sim\mathcal N(0,1)"></div>
-      <p class="aside">The −σ²/2 corrects for volatility drag (+10% then −10% leaves you at 0.99), so the expected price grows at exactly e<sup>rT</sup>.</p>
-    </div>
-  </div>
-
-  <div class="step">
-    <div class="num">3</div>
-    <div>
-      <h3>Price = discounted average payoff</h3>
-      <p>A call pays max(S<sub>T</sub> − K, 0). Simulate <i>n</i> futures, pay out in each, average, discount back to today. The law of large numbers does the rest:</p>
-      <div class="eq" data-tex="C \approx e^{-rT}\,\frac{1}{n}\sum_{i=1}^{n}\max\!\big(S_T^{(i)}-K,\,0\big),\qquad \text{error}\propto\frac{1}{\sqrt n}"></div>
-      <p class="aside">The √ law again, now working for you: 100× more simulations buys 10× more accuracy. That's the noise you see shrink in the MC − BS view.</p>
-    </div>
-  </div>
-
-  <div class="step">
-    <div class="num">4</div>
-    <div>
-      <h3>Check against the exact answer</h3>
-      <p>For this option there is a closed form, the Black–Scholes formula. If the simulation is right, the gap between the two is pure noise — a flat, fuzzy sheet near zero with no tilt or bump.</p>
-      <div class="eq" data-tex="C_{BS}=S_0\,\Phi(d_1)-Ke^{-rT}\Phi(d_2),\quad d_{1,2}=\frac{\ln(S_0/K)+(r\pm\frac{\sigma^2}{2})T}{\sigma\sqrt T}"></div>
-      <p class="aside">Why price rises with σ everywhere: wilder outcomes help on the upside, and the downside is capped at zero. The bulge is biggest near K = 100, where the outcome is most uncertain.</p>
-    </div>
-  </div>
-
-  <div class="step">
-    <div class="num">+</div>
-    <div>
-      <h3>Two engineering tricks</h3>
-      <p><b>Common random numbers.</b> The same <i>Z</i> draws are reused for every σ and every T, so moving the slider changes only σ — the surface morphs smoothly instead of shimmering.</p>
-      <p><b>Sort once.</b> S<sub>T</sub> rises with <i>Z</i>, so sorting <i>Z</i> once sorts every future. With running sums, each of the 800 grid points costs a binary search instead of a pass over all simulations — which is how a million paths per frame fits in your browser.</p>
     </div>
   </div>
 </section>
 
-<footer>
-  Built by Gerald Chen as a learning project — originally in Python (NumPy + Plotly), ported here to run live in the browser. Grid: 40 strikes (60–140) × 20 maturities (0.1–2 years).
-</footer>
-</div>
+<!-- 2 -->
+<section class="chapter" id="ch2" style="--c:var(--c2)" aria-labelledby="h2">
+  <div class="wrap">
+    <div class="ch-head"><span class="n">2</span><h2 id="h2">Stock prices</h2></div>
+    <div class="ch-body">
+      <div class="prose">
+        <p>Prices move in percentages, not points, so the random walk goes in the exponent. Add up a year of small daily returns and the central limit theorem turns them into one normal draw <i>Z</i>:</p>
+        <div class="eq" data-tex="\begin{aligned}S_T &= S_0\exp\!\Big(\big(r-\tfrac{\sigma^2}{2}\big)T+\sigma\sqrt{T}\,Z\Big)\\ Z&\sim\mathcal N(0,1)\end{aligned}"></div>
+        <p>The <span class="katex-inline" data-tex="-\tfrac{\sigma^2}{2}"></span> term is the Itô correction. Without it the average simulated price runs too high, because a +10% day followed by a −10% day leaves you at 99, not 100.</p>
+        <p class="note">Switch the correction off and raise the volatility. The orange dot drifts above the dashed line, by a factor of e<sup>σ²T/2</sup>.</p>
+      </div>
+      <div class="viz">
+        <canvas id="gbm" role="img" aria-label="Forty simulated one-year stock price paths with the distribution of year-end prices"></canvas>
+        <div class="ctl">
+          <label class="field grow">Volatility σ <input type="range" id="gbm-sigma" min="0.10" max="0.60" step="0.05" value="0.30"><output id="gbm-sigma-v">30%</output></label>
+          <span class="field">Correction <span class="opts" id="ito"><button data-v="1" aria-pressed="true">On</button><button data-v="0" aria-pressed="false">Off</button></span></span>
+          <button class="act" id="gbm-again">New paths</button>
+        </div>
+        <p class="out" id="gbm-out" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+</section>
 
-<script src="vendor/plotly-gl3d.min.js"></script>
+<!-- 3 -->
+<section class="chapter" id="ch3" style="--c:var(--c3)" aria-labelledby="h3">
+  <div class="wrap">
+    <div class="ch-head"><span class="n">3</span><h2 id="h3">Averaging payoffs</h2></div>
+    <div class="ch-body">
+      <div class="prose">
+        <p>A call option lets you buy at the strike <i>K</i>. If the stock ends above <i>K</i> you gain the difference; otherwise you walk away with nothing. Simulate many futures, record what the call pays in each, average, and discount back to today:</p>
+        <div class="eq" data-tex="\hat C_n = e^{-rT}\,\frac{1}{n}\sum_{i=1}^{n}\max\!\big(S_T^{(i)}-K,\,0\big)"></div>
+        <p>The shaded band is the 95% confidence interval the simulation reports about itself. It narrows like <span class="katex-inline" data-tex="1/\sqrt n"></span>: a hundred times more paths for ten times more accuracy.</p>
+        <p class="note">Here S₀ = 100, r = 5%, σ = 20% and T = 1 year. Push the strike up and watch how many paths pay nothing.</p>
+      </div>
+      <div class="viz">
+        <canvas id="avg" role="img" aria-label="Running Monte Carlo estimate of the call price against the number of paths, converging to the Black–Scholes price"></canvas>
+        <div class="ctl">
+          <button class="act" data-add="10">Add 10 paths</button>
+          <button class="act" data-add="1000">Add 1,000</button>
+          <button class="act" data-add="100000">Add 100,000</button>
+          <button class="act" id="avg-reset">Start over</button>
+          <label class="field grow">Strike K <input type="range" id="avg-k" min="70" max="140" step="5" value="100"><output id="avg-k-v">100</output></label>
+        </div>
+        <p class="out" id="avg-out" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="chapter" id="ch4" style="--c:var(--c4)" aria-labelledby="h4">
+  <div class="wrap">
+    <div class="ch-head"><span class="n">4</span><h2 id="h4">Convergence</h2></div>
+    <div class="ch-body">
+      <div class="prose">
+        <p>One run proves little: its error is mostly luck. So price the call at seven path counts from 1,000 to 1,000,000, twenty times each with a different seed, and plot the error on log–log axes.</p>
+        <div class="eq" data-tex="\text{SE}=\frac{s}{\sqrt N}\quad\Longrightarrow\quad \log \text{SE} = \text{const} - \tfrac12\log N"></div>
+        <p>If theory holds, the standard error falls on a line of slope −½, and about 95% of runs catch the true price inside their interval. In the paper this came out at −0.499 and 92.9%.</p>
+        <p class="note">Errors here are relative to the price. Try a strike of 140: the option is cheap, few paths pay, and the same number of paths buys far less accuracy.</p>
+      </div>
+      <div class="viz">
+        <canvas id="conv" role="img" aria-label="Log-log plot of relative pricing error against number of paths"></canvas>
+        <div class="ctl">
+          <span class="field">Strike <span class="opts" id="conv-k"><button data-k="80" aria-pressed="false">80</button><button data-k="100" aria-pressed="true">100</button><button data-k="120" aria-pressed="false">120</button><button data-k="140" aria-pressed="false">140</button></span></span>
+          <button class="act" id="conv-run">Run 20 seeds</button>
+        </div>
+        <p class="out" id="conv-out" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="chapter" id="ch5" style="--c:var(--c5)" aria-labelledby="h5">
+  <div class="wrap">
+    <div class="ch-head"><span class="n">5</span><h2 id="h5">The full surface</h2></div>
+    <div class="ch-body wide">
+      <div class="prose">
+        <p>Now price every strike from 60 to 140 and every maturity from 0.1 to 2 years at once: 800 options, each checked against the exact formula.</p>
+        <div class="eq" data-tex="\begin{aligned}C_{BS}&=S_0\,\Phi(d_1)-Ke^{-rT}\Phi(d_2)\\ d_{1,2}&=\frac{\ln(S_0/K)+(r\pm\frac{\sigma^2}{2})T}{\sigma\sqrt T}\end{aligned}"></div>
+        <p>Show the difference and switch between 10,000 and 1,000,000 paths. The vertical axis stays fixed, so the noise visibly flattens by about √100 = 10 times.</p>
+        <p class="note">Two tricks make this fast enough to run live. The same random draws are reused for every σ and T, so the slider morphs the surface instead of re-rolling it. And because S<sub>T</sub> rises with Z, sorting Z once sorts every future, so each of the 800 prices costs a binary search rather than a pass over a million paths.</p>
+      </div>
+      <div class="viz">
+        <div id="plot"></div>
+        <div class="ctl">
+          <span class="field">Show <span class="opts" id="view"><button data-v="mc" aria-pressed="true">Monte Carlo</button><button data-v="bs" aria-pressed="false">Black–Scholes</button><button data-v="diff" aria-pressed="false">Difference</button></span></span>
+          <span class="field">Paths <span class="opts" id="nsims"><button data-n="10000" aria-pressed="false">10k</button><button data-n="100000" aria-pressed="true">100k</button><button data-n="1000000" aria-pressed="false">1M</button></span></span>
+        </div>
+        <div class="ctl">
+          <label class="field grow">Volatility σ <input type="range" id="sigma" min="0.10" max="0.50" step="0.05" value="0.20"><output id="sigval">20%</output></label>
+          <button class="act" id="play">Sweep σ</button>
+          <button class="act" id="reseed">New draw</button>
+        </div>
+        <p class="out" id="surf-out" aria-live="polite"></p>
+        <p class="status" id="status">Computing</p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built by Gerald Chen as a learning project: first in Python with NumPy and Plotly, then ported to run live in the browser. The code and the research paper that grew out of it are on <a href="https://github.com/geraldchen56-droid/option-pricer">GitHub</a>.</p>
+  </div>
+</footer>
+
 <script src="vendor/katex.min.js"></script>
 <script src="engine.js"></script>
 <script>
 (function(){
-  "use strict";
-  const R = window.RootT;
-  const S0 = 100, r = 0.05;
-  const strikes = R.linspace(60, 140, 40);
-  const mats = R.linspace(0.1, 2.0, 20);
-  const PRICE_MAX = R.bsCall(S0, 60, 2, r, 0.5) * 1.04; // pinned across all σ
-  const DIFF_MAX = 0.35;                                 // pinned across all n
+"use strict";
+const R = window.RootT;
+const $ = s => document.querySelector(s);
+const root = document.documentElement;
+const css = n => getComputedStyle(root).getPropertyValue(n).trim();
+const colorOf = el => getComputedStyle(el).getPropertyValue("--c").trim();
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const FONT = '"Source Sans 3","Source Sans Pro",system-ui,sans-serif';
+const fmt = (x, d) => x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-  const state = { view: "mc", n: 100000, sigma: 0.20, seed: 20260904, z: null, buf: null };
+function rgba(hex, a) {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function fit(cv) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = cv.clientWidth, h = cv.clientHeight;
+  const W = Math.round(w * dpr), H = Math.round(h * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function text(ctx, s, x, y, color, align, size, weight) {
+  ctx.font = `${weight || 400} ${size || 13}px ${FONT}`;
+  ctx.fillStyle = color; ctx.textAlign = align || "left"; ctx.textBaseline = "middle";
+  ctx.fillText(s, x, y);
+}
+function hline(ctx, x0, x1, y, color, dash) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(x0, Math.round(y) + .5); ctx.lineTo(x1, Math.round(y) + .5); ctx.stroke(); ctx.restore();
+}
 
-  // KaTeX
-  document.querySelectorAll("[data-tex]").forEach(el => {
-    try { katex.render(el.dataset.tex, el, { displayMode: true, throwOnError: false }); }
-    catch (e) { el.textContent = el.dataset.tex; }
-  });
+// KaTeX
+document.querySelectorAll("[data-tex]").forEach(el => {
+  const inline = el.classList.contains("katex-inline");
+  try { katex.render(el.dataset.tex, el, { displayMode: !inline, throwOnError: false }); }
+  catch (e) { el.textContent = el.dataset.tex; }
+});
 
-  if (typeof Plotly === "undefined") {
-    document.getElementById("status").textContent = "Chart library failed to load. Try refreshing the page.";
-    return;
+const redraws = [];
+function redrawAll() { redraws.forEach(f => f()); }
+let rsT = null;
+window.addEventListener("resize", () => { clearTimeout(rsT); rsT = setTimeout(redrawAll, 120); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll);
+
+// ---------- hero: walkers fanning out inside ±√t ----------
+(function hero() {
+  const cv = $("#hero-walk"), sec = cv.parentElement;
+  const M = 90, STEPS = 260;
+  let walks = [], prog = reduceMotion ? 1 : 0;
+  const rand = R.mulberry32(11);
+  for (let m = 0; m < M; m++) {
+    const a = new Float32Array(STEPS + 1);
+    for (let i = 1; i <= STEPS; i++) a[i] = a[i - 1] + (rand() < .5 ? -1 : 1);
+    walks.push(a);
   }
-
-  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  const $ = id => document.getElementById(id);
-
   function draw() {
-    if (!state.z || state.z.length !== state.n) {
-      state.z = R.sortedNormals(state.n, state.seed);
-      state.buf = R.makeBuffers(state.n);
+    const { ctx, w, h } = fit(cv);
+    const c = colorOf(sec), ink = css("--ink");
+    const wide = w >= 900, x0 = wide ? w * 0.56 : w * 0.08, x1 = w + 10, mid = wide ? h * 0.5 : h * 0.9;
+    const scale = (h * (wide ? 0.42 : 0.085)) / (2.6 * Math.sqrt(STEPS));
+    const X = i => x0 + (x1 - x0) * i / STEPS, Y = v => mid - v * scale;
+    const upto = Math.max(1, Math.floor(prog * STEPS));
+    ctx.lineWidth = 1; ctx.strokeStyle = rgba(ink.startsWith("#") ? ink : "#2c2c2e", 0.09);
+    for (const a of walks) {
+      ctx.beginPath(); ctx.moveTo(X(0), Y(0));
+      for (let i = 1; i <= upto; i++) ctx.lineTo(X(i), Y(a[i]));
+      ctx.stroke();
     }
-    const t0 = performance.now();
-    const mc = [], bs = [], diff = [];
-    let worst = 0;
-    for (let i = 0; i < mats.length; i++) {
-      const T = mats[i];
-      const { prices } = R.mcSlice(state.z, S0, r, state.sigma, T, strikes, state.buf);
-      const rowM = [], rowB = [], rowD = [];
-      for (let k = 0; k < strikes.length; k++) {
-        const b = R.bsCall(S0, strikes[k], T, r, state.sigma);
-        rowM.push(prices[k]); rowB.push(b); rowD.push(prices[k] - b);
-        worst = Math.max(worst, Math.abs(prices[k] - b));
+    ctx.strokeStyle = wide ? c : rgba(c, 0.6); ctx.lineWidth = 2;
+    for (const k of [1, -1]) {
+      ctx.beginPath(); ctx.moveTo(X(0), Y(0));
+      for (let i = 1; i <= upto; i++) ctx.lineTo(X(i), Y(k * 2 * Math.sqrt(i)));
+      ctx.stroke();
+    }
+  }
+  if (!reduceMotion) {
+    const t0 = performance.now(), dur = 2200;
+    (function tick(t) {
+      prog = Math.min(1, (t - t0) / dur);
+      prog = 1 - Math.pow(1 - prog, 2);
+      draw(); if (prog < 1) requestAnimationFrame(tick);
+    })(t0);
+  } else draw();
+  redraws.push(draw);
+})();
+
+// ---------- 1. random walks ----------
+(function walks() {
+  const cv = $("#walk"), sec = $("#ch1"), sl = $("#steps"), out = $("#walk-out");
+  const W = 300;
+  let seed = 3, N = 100, paths = [], prog = 1;
+  function gen() {
+    const rand = R.mulberry32(seed);
+    paths = [];
+    for (let w = 0; w < W; w++) {
+      const a = new Int16Array(N + 1);
+      for (let i = 1; i <= N; i++) a[i] = a[i - 1] + (rand() < .5 ? -1 : 1);
+      paths.push(a);
+    }
+  }
+  function draw() {
+    const { ctx, w, h } = fit(cv);
+    const c = colorOf(sec), ink = css("--ink"), mute = css("--mute"), rule = css("--rule");
+    const L = 40, Rt = 92, T = 14, B = 30, pw = w - L - Rt, ph = h - T - B;
+    const ymax = 3.2 * Math.sqrt(N);
+    const X = i => L + i / N * pw, Y = v => T + ph / 2 - v / ymax * ph / 2;
+    // axes
+    hline(ctx, L, L + pw, Y(0), rule);
+    const tick = Math.max(2, Math.round(Math.sqrt(N) / 2) * 2);
+    for (let v = tick; v < ymax; v += tick * 2) {
+      text(ctx, "+" + v, L - 8, Y(v), mute, "right", 12);
+      text(ctx, "−" + v, L - 8, Y(-v), mute, "right", 12);
+    }
+    text(ctx, "0", L - 8, Y(0), mute, "right", 12);
+    text(ctx, "0", L, h - 12, mute, "left", 12);
+    text(ctx, N + " steps", L + pw, h - 12, mute, "right", 12);
+    // paths
+    const upto = Math.max(1, Math.floor(prog * N));
+    ctx.lineWidth = 1; ctx.strokeStyle = rgba(c, 0.13);
+    for (const a of paths) {
+      ctx.beginPath(); ctx.moveTo(X(0), Y(0));
+      for (let i = 1; i <= upto; i++) ctx.lineTo(X(i), Y(a[i]));
+      ctx.stroke();
+    }
+    // envelopes
+    for (const [k, dash, lab] of [[1, [], "√n"], [2, [5, 4], "2√n"]]) {
+      ctx.save(); ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.setLineDash(dash);
+      for (const s of [1, -1]) {
+        ctx.beginPath(); ctx.moveTo(X(0), Y(0));
+        for (let i = 1; i <= N; i++) ctx.lineTo(X(i), Y(s * k * Math.sqrt(i)));
+        ctx.stroke();
       }
-      mc.push(rowM); bs.push(rowB); diff.push(rowD);
+      ctx.restore();
+      if (Y(k * Math.sqrt(N)) > T + 6) text(ctx, lab, X(N) + 6, Y(k * Math.sqrt(N)) - 9, ink, "left", 13, 600);
     }
-    const atm = R.mcSlice(state.z, S0, r, state.sigma, 1, [100], state.buf);
-    const bsAtm = R.bsCall(S0, 100, 1, r, state.sigma);
-    const ms = performance.now() - t0;
-
-    const ink = css("--ink"), line = css("--line"), muted = css("--muted");
-    const isDiff = state.view === "diff";
-    const z = state.view === "mc" ? mc : state.view === "bs" ? bs : diff;
-    const label = { mc: "MC price", bs: "BS price", diff: "MC − BS" }[state.view];
-    // Same palettes as the Python version (surface_mc.py): one blue ramp for
-    // prices, and a diverging blue / grey / red scale for the signed error.
-    const PRICE_SCALE = [[0, "#cde2fb"], [1/6, "#9ec5f4"], [2/6, "#6da7ec"], [3/6, "#3987e5"],
-                         [4/6, "#2a78d6"], [5/6, "#1c5cab"], [1, "#0d366b"]];
-    const ERROR_SCALE = [[0, "#0d366b"], [0.25, "#3987e5"], [0.5, "#f0efec"], [0.75, "#e34948"], [1, "#7d2020"]];
-    const scale = isDiff ? ERROR_SCALE : PRICE_SCALE;
-    // Colours stretch to the largest error on screen so the sign of the error
-    // is always visible; the z-axis stays fixed so the noise visibly shrinks.
-    const errSpan = Math.max(worst, 1e-6);
-    const axis = t => ({ title: { text: t, font: { color: muted, size: 12 } }, gridcolor: line, zerolinecolor: line,
-      tickfont: { color: muted, size: 11 }, backgroundcolor: "rgba(0,0,0,0)", showbackground: true });
-
-    const trace = {
-      type: "surface", x: Array.from(strikes), y: Array.from(mats), z,
-      colorscale: scale, cmin: isDiff ? -errSpan : 0, cmax: isDiff ? errSpan : PRICE_MAX,
-      showscale: true,
-      colorbar: { title: { text: isDiff ? "MC − BS" : "price", side: "right", font: { color: muted, size: 12 } },
-                  tickfont: { color: muted, size: 11 }, outlinewidth: 0, len: 0.7, thickness: 14 },
-      hovertemplate: "K %{x:.0f}<br>T %{y:.2f}y<br>" + label + " %{z:.4f}<extra></extra>",
-      contours: { z: { show: false } }
-    };
-    const layout = {
-      paper_bgcolor: "rgba(0,0,0,0)", margin: { l: 0, r: 0, t: 0, b: 0 },
-      font: { family: "Inter, sans-serif", color: ink },
-      scene: {
-        xaxis: axis("strike K"), yaxis: axis("years to expiry T"),
-        zaxis: Object.assign(axis(isDiff ? "MC − BS" : "call price"),
-          { range: isDiff ? [-DIFF_MAX, DIFF_MAX] : [0, PRICE_MAX] }),
-        camera: { eye: { x: 1.6, y: -1.6, z: 0.75 } },
-        aspectmode: "manual", aspectratio: { x: 1.2, y: 1, z: 0.7 }
-      },
-      uirevision: "keep"
-    };
-    Plotly.react("plot", [trace], layout, { displaylogo: false, responsive: true,
-      modeBarButtonsToRemove: ["toImage", "resetCameraLastSave3d"] });
-
-    const se = atm.ses[0], mcA = atm.prices[0];
-    $("r-mc").textContent = mcA.toFixed(3);
-    $("r-se").textContent = "± " + se.toFixed(3) + " standard error";
-    $("r-bs").textContent = bsAtm.toFixed(3);
-    const gap = mcA - bsAtm;
-    $("r-gap").textContent = (gap >= 0 ? "+" : "") + gap.toFixed(3);
-    $("r-gap-se").textContent = (Math.abs(gap) / se).toFixed(2) + " standard errors";
-    $("r-worst").textContent = worst.toFixed(3);
-    $("status").textContent = `${state.n.toLocaleString()} simulations × 20 maturities × 40 strikes · computed in ${ms.toFixed(0)} ms`;
+    // histogram of endpoints
+    if (prog >= 1) {
+      const bw = Math.max(2, 2 * Math.round(ymax / 18));
+      const counts = new Map();
+      for (const a of paths) { const b = Math.round(a[N] / bw); counts.set(b, (counts.get(b) || 0) + 1); }
+      const maxc = Math.max(...counts.values());
+      const barH = Math.max(2, Math.abs(Y(bw) - Y(0)) - 1);
+      ctx.fillStyle = rgba(c, 0.75);
+      for (const [b, n] of counts) {
+        const y = Y(b * bw);
+        if (y < T || y > T + ph) continue;
+        ctx.fillRect(X(N) + 34, y - barH / 2, n / maxc * (Rt - 40), barH);
+      }
+    }
   }
-
-  function safeDraw() {
-    try { draw(); }
-    catch (e) { $("status").textContent = "Something went wrong drawing the chart: " + e.message; console.error(e); }
+  function report() {
+    let s = 0; for (const a of paths) s += a[N] * a[N];
+    const sd = Math.sqrt(s / W);
+    out.innerHTML = `After ${N} steps the 300 walkers have spread to a standard deviation of <b>${fmt(sd, 1)}</b>. The square-root law predicts √${N} = <b>${fmt(Math.sqrt(N), 1)}</b>.`;
   }
-  function schedule() { $("status").textContent = "computing…"; requestAnimationFrame(() => setTimeout(safeDraw, 0)); }
+  function animate() {
+    if (reduceMotion) { prog = 1; draw(); report(); return; }
+    const t0 = performance.now(), dur = 900;
+    out.textContent = "Walking…";
+    (function tick(t) {
+      prog = Math.min(1, (t - t0) / dur); draw();
+      if (prog < 1) requestAnimationFrame(tick); else report();
+    })(t0);
+  }
+  sl.addEventListener("input", () => { N = +sl.value; $("#steps-v").textContent = N; gen(); prog = 1; draw(); report(); });
+  $("#walk-again").addEventListener("click", () => { seed = (Math.random() * 2 ** 31) | 0; gen(); animate(); });
+  gen(); draw(); report();
+  redraws.push(draw);
+})();
 
-  function seg(id, attr, key, parse) {
-    $(id).addEventListener("click", e => {
-      const b = e.target.closest("button"); if (!b) return;
-      $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
-      state[key] = parse(b.dataset[attr]); schedule();
+// ---------- 2. geometric Brownian motion ----------
+(function gbm() {
+  const cv = $("#gbm"), sec = $("#ch2"), sl = $("#gbm-sigma"), out = $("#gbm-out");
+  const S0 = 100, r = 0.05, T = 1, STEPS = 252, P = 40, NT = 20000;
+  let sigma = 0.30, ito = 1, seed = 5, zPaths = null, zTerm = null;
+  function gen() {
+    const g = R.gaussian(R.mulberry32(seed));
+    zPaths = [];
+    for (let p = 0; p < P; p++) { const z = new Float64Array(STEPS); for (let i = 0; i < STEPS; i++) z[i] = g(); zPaths.push(z); }
+    zTerm = new Float64Array(NT); for (let i = 0; i < NT; i++) zTerm[i] = g();
+  }
+  function draw() {
+    const { ctx, w, h } = fit(cv);
+    const c = colorOf(sec), ink = css("--ink"), mute = css("--mute"), rule = css("--rule");
+    const L = 44, Rt = 100, Tp = 14, B = 30, pw = w - L - Rt, ph = h - Tp - B;
+    const mu = (r - 0.5 * sigma * sigma) * T;
+    const lo = S0 * Math.exp(mu - 2.4 * sigma), hi = S0 * Math.exp(mu + 0.5 * sigma * sigma + 2.6 * sigma);
+    const X = t => L + t / T * pw, Y = s => Tp + ph - (s - lo) / (hi - lo) * ph;
+    const dt = T / STEPS, drift = (r - ito * 0.5 * sigma * sigma) * dt, vol = sigma * Math.sqrt(dt);
+    // y ticks
+    const span = hi - lo, step = span > 200 ? 50 : span > 80 ? 20 : 10;
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      hline(ctx, L, L + pw, Y(v), rule);
+      text(ctx, String(v), L - 8, Y(v), mute, "right", 12);
+    }
+    text(ctx, "today", L, h - 12, mute, "left", 12);
+    text(ctx, "1 year", L + pw, h - 12, mute, "right", 12);
+    // paths
+    ctx.save(); ctx.beginPath(); ctx.rect(L, Tp, pw, ph); ctx.clip();
+    ctx.lineWidth = 1; ctx.strokeStyle = rgba(c, 0.32);
+    for (const z of zPaths) {
+      let s = S0; ctx.beginPath(); ctx.moveTo(X(0), Y(s));
+      for (let i = 0; i < STEPS; i++) { s *= Math.exp(drift + vol * z[i]); ctx.lineTo(X((i + 1) * dt), Y(s)); }
+      ctx.stroke();
+    }
+    // expected path
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(X(0), Y(S0)); ctx.lineTo(X(T), Y(S0 * Math.exp(r * T))); ctx.stroke();
+    ctx.restore();
+    text(ctx, "fair average", X(T) - 4, Y(S0 * Math.exp(r * T)) + 16, ink, "right", 13, 600);
+    // terminal distribution
+    const muT = (r - ito * 0.5 * sigma * sigma) * T, vT = sigma * Math.sqrt(T);
+    const bins = 46, counts = new Array(bins).fill(0); let sum = 0;
+    for (let i = 0; i < NT; i++) {
+      const s = S0 * Math.exp(muT + vT * zTerm[i]); sum += s;
+      const b = Math.floor((s - lo) / (hi - lo) * bins);
+      if (b >= 0 && b < bins) counts[b]++;
+    }
+    const maxc = Math.max(...counts), bh = ph / bins;
+    ctx.fillStyle = rgba(c, 0.75);
+    counts.forEach((n, b) => { if (n) ctx.fillRect(L + pw + 14, Tp + ph - (b + 1) * bh + .5, n / maxc * (Rt - 22), bh - 1); });
+    const mean = sum / NT, fwd = S0 * Math.exp(r * T);
+    // mean dot
+    const ym = Math.max(Tp, Math.min(Tp + ph, Y(mean)));
+    ctx.fillStyle = c; ctx.strokeStyle = css("--paper"); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(X(T), ym, 6, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    return { mean, fwd };
+  }
+  function update() {
+    const { mean, fwd } = draw();
+    const gap = (mean / fwd - 1) * 100;
+    out.innerHTML = `Average of 20,000 simulated year-end prices: <b>${fmt(mean, 2)}</b>. The risk-free forward is 100e<sup>0.05</sup> = <b>${fmt(fwd, 2)}</b>` +
+      (ito ? `, so the simulation is fair.` : `. Without the correction the average runs <b>${fmt(gap, 1)}%</b> too high.`);
+  }
+  sl.addEventListener("input", () => { sigma = Math.round(+sl.value * 100) / 100; $("#gbm-sigma-v").textContent = Math.round(sigma * 100) + "%"; update(); });
+  $("#ito").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    $("#ito").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    ito = +b.dataset.v; update();
+  });
+  $("#gbm-again").addEventListener("click", () => { seed = (Math.random() * 2 ** 31) | 0; gen(); update(); });
+  gen(); update();
+  redraws.push(draw);
+})();
+
+// ---------- 3. averaging payoffs ----------
+(function averaging() {
+  const cv = $("#avg"), sec = $("#ch3"), out = $("#avg-out"), kSl = $("#avg-k");
+  const S0 = 100, r = 0.05, sigma = 0.20, T = 1, MAXN = 1e6;
+  const disc = Math.exp(-r * T), mu = (r - 0.5 * sigma * sigma) * T, vol = sigma * Math.sqrt(T);
+  let K = 100, bs = R.bsCall(S0, K, T, r, sigma);
+  let g, n, sum, sumsq, zeros, hist, busy = false;
+  function reset() {
+    g = R.gaussian(R.mulberry32((Math.random() * 2 ** 31) | 0));
+    n = 0; sum = 0; sumsq = 0; zeros = 0; hist = [];
+  }
+  function est() {
+    const m = sum / n;
+    const v = n > 1 ? Math.max(sumsq / n - m * m, 0) * n / (n - 1) : 0;
+    return { m, se: Math.sqrt(v / n) };
+  }
+  function simulate(k) {
+    for (let i = 0; i < k; i++) {
+      const y = disc * Math.max(S0 * Math.exp(mu + vol * g()) - K, 0);
+      sum += y; sumsq += y * y; if (y === 0) zeros++;
+    }
+    n += k;
+    const e = est(); hist.push({ n, m: e.m, se: e.se });
+  }
+  function draw() {
+    const { ctx, w, h } = fit(cv);
+    const c = colorOf(sec), ink = css("--ink"), mute = css("--mute"), rule = css("--rule");
+    const L = 48, Rt = 16, Tp = 14, B = 30, pw = w - L - Rt, ph = h - Tp - B;
+    const lo = bs * 0.4, hi = bs * 1.6;
+    const X = m => L + Math.log10(Math.max(m, 1)) / 6 * pw;
+    const Y = v => Tp + ph - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * ph;
+    ["1", "10", "100", "1k", "10k", "100k", "1M"].forEach((s, i) => {
+      const x = L + i / 6 * pw;
+      ctx.fillStyle = rule; ctx.fillRect(Math.round(x), Tp, 1, ph);
+      text(ctx, s, x, h - 12, mute, i === 0 ? "left" : i === 6 ? "right" : "center", 12);
     });
+    const step = bs > 20 ? 5 : bs > 6 ? 2 : bs > 2 ? 0.5 : 0.2;
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) text(ctx, fmt(v, step < 1 ? 1 : 0), L - 8, Y(v), mute, "right", 12);
+    // band
+    const pts = hist.filter(p => p.n >= 2);
+    if (pts.length > 1) {
+      ctx.fillStyle = rgba(c, 0.16); ctx.beginPath();
+      pts.forEach((p, i) => { const x = X(p.n), y = Y(p.m + 1.96 * p.se); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(X(pts[i].n), Y(pts[i].m - 1.96 * pts[i].se));
+      ctx.closePath(); ctx.fill();
+    }
+    // BS line
+    hline(ctx, L, L + pw, Y(bs), ink, [5, 4]);
+    text(ctx, "Black–Scholes " + fmt(bs, 2), L + pw - 4, Y(bs) - 11, ink, "right", 13, 600);
+    // estimate
+    if (hist.length) {
+      ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.beginPath();
+      hist.forEach((p, i) => { const x = X(p.n), y = Y(p.m); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke();
+      const last = hist[hist.length - 1];
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(X(last.n), Y(last.m), 4.5, 0, 2 * Math.PI); ctx.fill();
+    } else {
+      text(ctx, "No paths yet. Add some to start the average.", L + pw / 2, Tp + ph * 0.25, mute, "center", 15);
+    }
   }
-  seg("view", "v", "view", v => v);
-  seg("nsims", "n", "n", v => parseInt(v, 10));
+  function report() {
+    if (!n) { out.textContent = ""; return; }
+    const e = est();
+    out.innerHTML = `After <b>${n.toLocaleString()}</b> paths the estimate is <b>${fmt(e.m, 3)}</b> ± ${fmt(1.96 * e.se, 3)} (95%). ` +
+      `Black–Scholes says <b>${fmt(bs, 3)}</b>. ${fmt(zeros / n * 100, 0)}% of paths paid nothing.`;
+  }
+  function setBusy(b) {
+    busy = b;
+    sec.querySelectorAll("[data-add]").forEach(btn => btn.disabled = b || n + (+btn.dataset.add) > MAXN);
+  }
+  function add(m) {
+    if (busy) return;
+    m = Math.min(m, MAXN - n); if (m <= 0) return;
+    setBusy(true);
+    const frames = reduceMotion ? 1 : Math.min(m, 48);
+    // geometric chunking so the curve fills the log axis evenly
+    const marks = []; const start = n;
+    for (let f = 1; f <= frames; f++) marks.push(Math.round(start + (m) * Math.pow(f / frames, 2.2)));
+    let fi = 0;
+    (function tick() {
+      const target = Math.max(marks[fi], n + 1);
+      simulate(Math.min(target, start + m) - n);
+      fi++; draw(); report();
+      if (n < start + m && fi < frames) requestAnimationFrame(tick);
+      else { if (n < start + m) { simulate(start + m - n); draw(); report(); } setBusy(false); }
+    })();
+  }
+  sec.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", () => add(+b.dataset.add)));
+  $("#avg-reset").addEventListener("click", () => { if (busy) return; reset(); setBusy(false); draw(); report(); });
+  kSl.addEventListener("input", () => {
+    if (busy) return;
+    K = +kSl.value; $("#avg-k-v").textContent = K; bs = R.bsCall(S0, K, T, r, sigma);
+    reset(); setBusy(false); draw(); report();
+  });
+  reset(); draw(); report();
+  redraws.push(draw);
+})();
 
-  const slider = $("sigma");
-  slider.addEventListener("input", () => {
-    state.sigma = Math.round(parseFloat(slider.value) * 100) / 100;
-    $("sigval").textContent = Math.round(state.sigma * 100) + "%";
+// ---------- 4. convergence ----------
+(function convergence() {
+  const cv = $("#conv"), sec = $("#ch4"), out = $("#conv-out"), btn = $("#conv-run");
+  const S0 = 100, r = 0.05, sigma = 0.20, T = 1, SEEDS = 20;
+  const Ns = [1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6];
+  const disc = Math.exp(-r * T), mu = (r - 0.5 * sigma * sigma) * T, vol = sigma * Math.sqrt(T);
+  let K = 100, bs = R.bsCall(S0, K, T, r, sigma), runs = [], running = false;
+  const yLo = -4.3, yHi = 0; // log10 of relative error
+  function draw() {
+    const { ctx, w, h } = fit(cv);
+    const c = colorOf(sec), ink = css("--ink"), mute = css("--mute"), rule = css("--rule");
+    const L = 58, Rt = 16, Tp = 14, B = 30, pw = w - L - Rt, ph = h - Tp - B;
+    const X = n => L + (Math.log10(n) - 2.85) / (6.15 - 2.85) * pw;
+    const Y = rel => Tp + (yHi - Math.max(yLo, Math.min(yHi, Math.log10(rel)))) / (yHi - yLo) * ph;
+    ["0.01%", "0.1%", "1%", "10%", "100%"].forEach((s, i) => {
+      const y = Y(Math.pow(10, -4 + i)); hline(ctx, L, L + pw, y, rule); text(ctx, s, L - 8, y, mute, "right", 12);
+    });
+    [[1e3, "1,000"], [1e4, "10,000"], [1e5, "100,000"], [1e6, "1,000,000"]].forEach(([n, s]) => text(ctx, s, X(n), h - 12, mute, "center", 12));
+    if (!runs.length) {
+      text(ctx, "Press Run to price the call 140 times.", L + pw / 2, Tp + ph * 0.5, mute, "center", 15);
+      return;
+    }
+    // realised errors, one faint dot per run
+    ctx.fillStyle = rgba(c, 0.35);
+    for (const run of runs) run.forEach((p, i) => {
+      const rel = Math.max(Math.abs(p.m - bs) / bs, 1e-5);
+      ctx.beginPath(); ctx.arc(X(Ns[i]) + ((p.seed % 7) - 3) * 2.2, Y(rel), 2.6, 0, 2 * Math.PI); ctx.fill();
+    });
+    // mean SE line
+    const mse = Ns.map((_, i) => runs.reduce((a, run) => a + run[i].se, 0) / runs.length / bs);
+    // theory slope through first point
+    ctx.save(); ctx.strokeStyle = mute; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(X(Ns[0]), Y(mse[0])); ctx.lineTo(X(Ns[6]), Y(mse[0] * Math.sqrt(Ns[0] / Ns[6]))); ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.beginPath();
+    mse.forEach((v, i) => i ? ctx.lineTo(X(Ns[i]), Y(v)) : ctx.moveTo(X(Ns[i]), Y(v))); ctx.stroke();
+    ctx.fillStyle = c; mse.forEach((v, i) => { ctx.beginPath(); ctx.arc(X(Ns[i]), Y(v), 4, 0, 2 * Math.PI); ctx.fill(); });
+    text(ctx, "standard error", X(Ns[0]) + 10, Y(mse[0]) - 16, c, "left", 13, 600);
+    text(ctx, "slope −½", X(Ns[6]) - 4, Y(mse[0] * Math.sqrt(Ns[0] / Ns[6])) + 18, mute, "right", 13);
+  }
+  function summary() {
+    const k = runs.length, mse = Ns.map((_, i) => runs.reduce((a, run) => a + run[i].se, 0) / k);
+    const xs = Ns.map(Math.log10), ys = mse.map(Math.log10);
+    const xb = xs.reduce((a, b) => a + b) / 7, yb = ys.reduce((a, b) => a + b) / 7;
+    let sxy = 0, sxx = 0; xs.forEach((x, i) => { sxy += (x - xb) * (ys[i] - yb); sxx += (x - xb) ** 2; });
+    const slope = sxy / sxx;
+    let cover = 0, total = 0;
+    for (const run of runs) for (const p of run) { total++; if (Math.abs(p.m - bs) <= 1.96 * p.se) cover++; }
+    const sPay = mse[6] * Math.sqrt(Ns[6]);
+    const cent = Math.pow(sPay / 0.01, 2);
+    const relAtM = mse[6] / bs * 100;
+    return { slope, cover, total, cent, relAtM, k };
+  }
+  function report(done) {
+    if (!runs.length) { out.textContent = ""; return; }
+    const s = summary();
+    out.innerHTML = (done ? "" : `Seed ${s.k} of ${SEEDS}. `) +
+      `Fitted slope <b>${fmt(s.slope, 3)}</b> against a theoretical −0.5. The true price fell inside the 95% interval in <b>${s.cover} of ${s.total}</b> runs. ` +
+      (done ? `At this strike a one-cent standard error needs about <b>${s.cent >= 1e7 ? fmt(s.cent / 1e6, 0) : fmt(s.cent / 1e6, 1)} million</b> paths, and a million paths still leave a relative error of ${fmt(s.relAtM, 2)}%.` : "");
+  }
+  function oneSeed(seed) {
+    const res = [];
+    Ns.forEach((N, i) => {
+      const g = R.gaussian(R.mulberry32(seed * 1009 + i * 7919 + K));
+      let sum = 0, sq = 0;
+      for (let j = 0; j < N; j++) { const y = disc * Math.max(S0 * Math.exp(mu + vol * g()) - K, 0); sum += y; sq += y * y; }
+      const m = sum / N, v = Math.max(sq / N - m * m, 0) * N / (N - 1);
+      res.push({ m, se: Math.sqrt(v / N), seed });
+    });
+    return res;
+  }
+  function run() {
+    if (running) return;
+    running = true; btn.disabled = true; runs = []; draw(); out.textContent = "Simulating…";
+    let s = 1;
+    (function tick() {
+      runs.push(oneSeed(s)); draw(); report(s === SEEDS);
+      if (s++ < SEEDS) setTimeout(() => requestAnimationFrame(tick), 0);
+      else { running = false; btn.disabled = false; btn.textContent = "Run again"; }
+    })();
+  }
+  btn.addEventListener("click", run);
+  $("#conv-k").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b || running) return;
+    $("#conv-k").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    K = +b.dataset.k; bs = R.bsCall(S0, K, T, r, sigma); runs = []; btn.textContent = "Run 20 seeds"; draw(); report();
+  });
+  draw();
+  redraws.push(draw);
+})();
+
+// ---------- 5. surface (Plotly, loaded when the chapter comes near) ----------
+(function surface() {
+  const sec = $("#ch5"), status = $("#status");
+  let started = false;
+  function load() {
+    if (started) return; started = true;
+    const s = document.createElement("script");
+    s.src = "vendor/plotly-gl3d.min.js";
+    s.onload = init;
+    s.onerror = () => { status.textContent = "The 3D chart library didn't load. Refresh the page to try again."; };
+    document.body.appendChild(s);
+  }
+  new IntersectionObserver((es, ob) => { if (es.some(e => e.isIntersecting)) { load(); ob.disconnect(); } }, { rootMargin: "600px 0px" }).observe(sec);
+
+  function init() {
+    const S0 = 100, r = 0.05;
+    const strikes = R.linspace(60, 140, 40), mats = R.linspace(0.1, 2.0, 20);
+    const PRICE_MAX = R.bsCall(S0, 60, 2, r, 0.5) * 1.04;
+    const DIFF_MAX = 0.35;
+    const state = { view: "mc", n: 100000, sigma: 0.20, seed: 20260904, z: null, buf: null };
+
+    function draw() {
+      if (!state.z || state.z.length !== state.n) { state.z = R.sortedNormals(state.n, state.seed); state.buf = R.makeBuffers(state.n); }
+      const t0 = performance.now();
+      const mc = [], bsv = [], diff = []; let worst = 0;
+      for (let i = 0; i < mats.length; i++) {
+        const T = mats[i];
+        const { prices } = R.mcSlice(state.z, S0, r, state.sigma, T, strikes, state.buf);
+        const rm = [], rb = [], rd = [];
+        for (let k = 0; k < strikes.length; k++) {
+          const b = R.bsCall(S0, strikes[k], T, r, state.sigma);
+          rm.push(prices[k]); rb.push(b); rd.push(prices[k] - b); worst = Math.max(worst, Math.abs(prices[k] - b));
+        }
+        mc.push(rm); bsv.push(rb); diff.push(rd);
+      }
+      const atm = R.mcSlice(state.z, S0, r, state.sigma, 1, [100], state.buf);
+      const bsAtm = R.bsCall(S0, 100, 1, r, state.sigma);
+      const ms = performance.now() - t0;
+
+      const ink = css("--ink"), rule = css("--rule"), mute = css("--mute"), c5 = colorOf(sec), c1 = css("--c1"), c4 = css("--c4"), soft = css("--soft");
+      const isDiff = state.view === "diff";
+      const z = state.view === "mc" ? mc : state.view === "bs" ? bsv : diff;
+      const label = { mc: "Monte Carlo", bs: "Black–Scholes", diff: "MC − BS" }[state.view];
+      const PRICE_SCALE = [[0, rgba(c5, 0.12)], [0.5, rgba(c5, 0.6)], [1, c5]];
+      const ERROR_SCALE = [[0, c4], [0.5, soft], [1, c1]];
+      const errSpan = Math.max(worst, 1e-6);
+      const axis = t => ({ title: { text: t, font: { color: mute, size: 13 } }, gridcolor: rule, zerolinecolor: rule,
+        tickfont: { color: mute, size: 12 }, backgroundcolor: "rgba(0,0,0,0)", showbackground: true, showspikes: false });
+      const trace = {
+        type: "surface", x: Array.from(strikes), y: Array.from(mats), z,
+        colorscale: isDiff ? ERROR_SCALE : PRICE_SCALE, cmin: isDiff ? -errSpan : 0, cmax: isDiff ? errSpan : PRICE_MAX,
+        showscale: false, lighting: { ambient: 0.85, diffuse: 0.4, specular: 0.05 },
+        hovertemplate: "K %{x:.0f}<br>T %{y:.2f} years<br>" + label + " %{z:.4f}<extra></extra>",
+        contours: { z: { show: false } }
+      };
+      const layout = {
+        paper_bgcolor: "rgba(0,0,0,0)", margin: { l: 0, r: 0, t: 0, b: 0 },
+        font: { family: FONT, color: ink },
+        hoverlabel: { font: { family: FONT } },
+        scene: {
+          xaxis: axis("strike K"), yaxis: axis("years to expiry"),
+          zaxis: Object.assign(axis(isDiff ? "MC − BS" : "call price"), { range: isDiff ? [-DIFF_MAX, DIFF_MAX] : [0, PRICE_MAX] }),
+          camera: { eye: { x: 1.6, y: -1.6, z: 0.75 } }, aspectmode: "manual", aspectratio: { x: 1.2, y: 1, z: 0.7 }
+        },
+        uirevision: "keep"
+      };
+      Plotly.react("plot", [trace], layout, { displaylogo: false, responsive: true, displayModeBar: false });
+
+      const se = atm.ses[0], mA = atm.prices[0], gap = mA - bsAtm;
+      $("#surf-out").innerHTML = `At K = 100 and T = 1 year, Monte Carlo gives <b>${fmt(mA, 3)}</b> ± ${fmt(se, 3)} and Black–Scholes gives <b>${fmt(bsAtm, 3)}</b>, ` +
+        `${fmt(Math.abs(gap) / se, 2)} standard errors apart. The largest gap anywhere on the grid is ${fmt(worst, 3)}.`;
+      status.textContent = `${state.n.toLocaleString()} paths, 800 prices, computed in ${fmt(ms, 0)} ms.`;
+    }
+    function safeDraw() { try { draw(); } catch (e) { status.textContent = "The chart couldn't be drawn: " + e.message; console.error(e); } }
+    function schedule() { status.textContent = "Computing…"; requestAnimationFrame(() => setTimeout(safeDraw, 0)); }
+
+    function seg(id, attr, key, parse) {
+      $(id).addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+        state[key] = parse(b.dataset[attr]); schedule();
+      });
+    }
+    seg("#view", "v", "view", v => v);
+    seg("#nsims", "n", "n", v => parseInt(v, 10));
+    const slider = $("#sigma");
+    slider.addEventListener("input", () => {
+      state.sigma = Math.round(+slider.value * 100) / 100;
+      $("#sigval").textContent = Math.round(state.sigma * 100) + "%"; schedule();
+    });
+    $("#reseed").addEventListener("click", () => { state.seed = (Math.random() * 2 ** 31) | 0; state.z = null; schedule(); });
+    let timer = null;
+    $("#play").addEventListener("click", () => {
+      if (timer) { clearInterval(timer); timer = null; $("#play").textContent = "Sweep σ"; return; }
+      $("#play").textContent = "Stop";
+      let dir = 1;
+      timer = setInterval(() => {
+        let v = Math.round(+slider.value * 100) + 5 * dir;
+        if (v > 50) { v = 45; dir = -1; } else if (v < 10) { v = 15; dir = 1; }
+        slider.value = (v / 100).toFixed(2); slider.dispatchEvent(new Event("input"));
+      }, 450);
+    });
+    redraws.push(schedule);
     schedule();
-  });
-  $("reseed").addEventListener("click", () => { state.seed = (Math.random() * 2 ** 31) | 0; state.z = null; schedule(); });
+  }
+})();
 
-  let timer = null;
-  $("play").addEventListener("click", () => {
-    if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶ Sweep"; return; }
-    $("play").textContent = "❚❚ Stop";
-    let dir = 1;
-    timer = setInterval(() => {
-      let v = Math.round(parseFloat(slider.value) * 100) + 5 * dir;
-      if (v > 50) { v = 45; dir = -1; } else if (v < 10) { v = 15; dir = 1; }
-      slider.value = (v / 100).toFixed(2); slider.dispatchEvent(new Event("input"));
-    }, 450);
-  });
-
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule);
-  schedule();
+// ---------- nav: mark the chapter in view ----------
+(function nav() {
+  const links = [...document.querySelectorAll(".dots a")];
+  const ob = new IntersectionObserver(es => {
+    es.forEach(e => {
+      if (!e.isIntersecting) return;
+      links.forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + e.target.id));
+    });
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  document.querySelectorAll(".chapter").forEach(s => ob.observe(s));
+})();
 })();
 </script>
 </body>
