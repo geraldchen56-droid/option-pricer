@@ -9,19 +9,18 @@ from option_pricer.vectorized import price as bs_price
 
 
 def simulate_paths(S0, r, sigma, T, n_steps, n_paths):
-    """Full price paths, not just the final price.
+    """Full price paths, not only the final price.
 
-    Everything so far only needed S_T, so one random number per simulation was
-    enough. Hedging is different: we have to know the price on every day in
-    order to rebalance, so we need the whole path. That means n_steps random
-    numbers per path instead of one.
+    Pricing a European call only needs S_T, which takes one random number per
+    path. Hedging needs the price on every rebalancing day, so each path takes
+    n_steps random numbers.
 
     Returns an array of shape (n_paths, n_steps + 1); column 0 is S0.
     """
     dt = T / n_steps
     Z = np.random.standard_normal((n_paths, n_steps))
 
-    # Same GBM formula as before, applied over one small step at a time.
+    # The GBM formula from gbm.py, applied to one step of length dt.
     log_steps = (r - 0.5 * sigma**2) * dt + sigma * math.sqrt(dt) * Z
 
     # cumsum in log space = repeated multiplication in price space.
@@ -38,8 +37,8 @@ def hedge_short_call(paths, K, r, sigma, T, hedge_every=1):
     the rest in cash earning interest. Rebalance the share count every
     `hedge_every` steps. At expiry, pay out whatever the option owes.
 
-    If Black-Scholes is right, the premium plus the trading gains should cover
-    that payout exactly, so the profit and loss should come out near zero.
+    If Black-Scholes is correct, the premium plus the trading gains pay for
+    the payout on average, so the mean profit and loss is close to zero.
     """
     n_paths, n_cols = paths.shape
     n_steps = n_cols - 1
@@ -97,4 +96,4 @@ if __name__ == "__main__":
         )
 
     print(f"\nblack-scholes premium received: {premium:.4f}")
-    print("mean P&L near zero => the premium is exactly the expected cost of hedging")
+    print("mean P&L near zero: the premium equals the expected cost of hedging")

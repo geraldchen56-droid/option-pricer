@@ -8,12 +8,12 @@ import plotly.graph_objects as go
 from option_pricer.gbm import simulate_terminal_prices
 from option_pricer.vectorized import price as bs_price
 
-# One hue, light to dark, for the two price surfaces (a magnitude).
+# Blues for the two price surfaces.
 BLUE = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#2a78d6", "#1c5cab", "#0d366b"]
 PRICE_SCALE = [[i / (len(BLUE) - 1), c] for i, c in enumerate(BLUE)]
 
-# The error surface is signed, so it needs a diverging scale: two opposite
-# hues with a neutral grey at zero, so "no error" reads as blank.
+# Error colours: blue where MC is below BS, red where it is above,
+# grey where the error is zero.
 ERROR_SCALE = [
     [0.0, "#0d366b"], [0.25, "#3987e5"], [0.5, "#f0efec"],
     [0.75, "#e34948"], [1.0, "#7d2020"],
@@ -55,7 +55,7 @@ def build_figure(strikes, maturities, mc, bs):
     # MC and BS share a z range so switching between them is a fair comparison.
     price_lo = float(min(mc.min(), bs.min()))
     price_hi = float(max(mc.max(), bs.max()))
-    # The error scale is centred on zero so grey always means "no error".
+    # Centre the error colours on zero, so grey means no error.
     err = float(np.abs(diff).max())
 
     def surface(z, scale, lo, hi, label, unit):
@@ -82,7 +82,7 @@ def build_figure(strikes, maturities, mc, bs):
 
     fig.update_layout(
         title=dict(
-            text="<b>European call price surface</b> — Monte Carlo vs Black-Scholes",
+            text="<b>European call price surface</b>: Monte Carlo vs Black-Scholes",
             font=dict(color=INK, size=18), x=0.02, xanchor="left",
         ),
         paper_bgcolor=SURFACE_BG, height=760, margin=dict(l=0, r=0, t=110, b=0),

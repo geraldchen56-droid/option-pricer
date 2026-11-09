@@ -1,12 +1,12 @@
 """Array-valued Black-Scholes, for grids and surfaces.
 
-A numpy twin of :mod:`option_pricer.black_scholes`. Same formulas, same Greek
-conventions, same degenerate-case handling -- the only difference is that every
-argument broadcasts, so a whole spot x maturity grid prices in one call.
-``tests/test_vectorized.py`` pins the two implementations to each other.
+Numpy version of :mod:`option_pricer.black_scholes`. It uses the same
+formulas, Greek units and zero-T / zero-vol handling, but every argument can be
+an array, so a whole spot x maturity grid is priced in one call.
+``tests/test_vectorized.py`` checks that both versions agree.
 
-Kept separate rather than merged into the scalar module so the Black-Scholes
-core stays dependency-free; this one needs numpy and scipy.
+It is a separate module because black_scholes.py only needs the standard
+library, and this one needs numpy and scipy.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _validate(S, K, T, sigma, kind):
 def price(
     S, K, T, r, sigma, q=0.0, kind: OptionKind = "call"
 ) -> np.ndarray:
-    """Price European options over broadcast arrays. See the scalar twin."""
+    """Price European options over broadcast arrays. See black_scholes.price."""
     S, K, T, r, sigma, q = _broadcast(S, K, T, r, sigma, q)
     _validate(S, K, T, sigma, kind)
 

@@ -130,9 +130,8 @@ def greeks(
 
     Arguments match :func:`price`. See :class:`Greeks` for the units used.
 
-    At expiry (or zero volatility) the Greeks are degenerate -- gamma and vega
-    are zero or unbounded -- so they are reported as zero apart from the
-    step-function delta.
+    At expiry (or zero volatility) gamma and vega are zero or unbounded, so
+    all Greeks are reported as zero except delta, which is a step function.
     """
     _validate(S, K, T, sigma, kind)
 

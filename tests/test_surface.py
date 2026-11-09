@@ -6,9 +6,8 @@ pytest.importorskip("scipy")
 from option_pricer.surface import build_surface  # noqa: E402
 from option_pricer.vectorized import GREEK_NAMES  # noqa: E402
 
-# n_spot=15 over 40..180 lands exactly on the strike (step 10). A grid that
-# straddles K without hitting it misses the ATM gamma spike entirely at low
-# vol, which silently breaks any test about peak height.
+# n_spot=15 over 40..180 has a point at the strike (step 10). Without a point
+# at K the grid misses the gamma peak at low vol and the peak tests fail.
 SMALL = dict(n_spot=15, n_time=9, vols=(0.1, 0.2, 0.4))
 
 
@@ -80,9 +79,8 @@ class TestWriteSurface:
 
         html = out.read_text()
         assert "plotly" in html.lower()
-        # plotly.js inlined, so the file works with no network access. The
-        # bundle mentions cdn.plot.ly internally (topojson default), so check
-        # for an actual remote <script src>, not the bare hostname.
+        # plotly.js is inlined, so the file works offline. The plotly bundle
+        # contains the text cdn.plot.ly, so check for a remote <script src>.
         assert 'src="https://cdn.plot.ly' not in html
         assert out.stat().st_size > 1_000_000
 
@@ -114,7 +112,7 @@ class TestWriteSurface:
         assert all(s.args[0][0] in names for s in steps)
 
     def test_frame_zscale_rescales_each_frame(self):
-        """Escape hatch for wide vol sweeps: readable, but not comparable."""
+        """frame mode rescales each frame, so heights are not comparable."""
         pytest.importorskip("plotly")
         from option_pricer.surface import make_figure
 
@@ -127,7 +125,7 @@ class TestWriteSurface:
         for frame, want_max in zip(fig.frames, maxima):
             assert frame.data[0].cmax == pytest.approx(want_max)
             assert frame.layout.scene.zaxis.range[1] == pytest.approx(want_max)
-        # frames genuinely differ, otherwise the mode is pointless
+        # the frames must have different ranges
         assert len(set(maxima)) == len(maxima)
 
     def test_frame_zscale_warns_in_the_axis_title(self):

@@ -22,9 +22,9 @@ paper describes it. Runtimes are the one thing that changes from run to run:
 the runtimes in `paper/results/` come from a different run than the
 runtime column of the paper's Table 1, so those numbers differ slightly.
 
-**Live demo: [root-t.vercel.app](https://root-t.vercel.app)** — the Monte Carlo
-vs Black-Scholes price surface with a volatility slider, running in the browser.
-Source in [`web/`](web/).
+Live demo: [root-t.vercel.app](https://root-t.vercel.app), an interactive
+walk-through in five chapters that ends with the Monte Carlo vs Black-Scholes
+price surface. Source in [`web/`](web/).
 
 ## Install
 
@@ -51,7 +51,7 @@ Call  S=100  K=100  T=1y
 Flags: `-S` spot, `-K` strike, `-T` expiry in years, `-r` risk-free rate,
 `-v` volatility, `-q` dividend yield, `-k/--kind` `call|put`, `--json`.
 
-Rates and volatility accept decimals or percentages — `-v 0.2` and `-v 20%`
+Rates and volatility accept decimals or percentages, so `-v 0.2` and `-v 20%`
 are the same. Use `--json` for machine-readable output.
 
 ## Library
@@ -102,24 +102,24 @@ The terminal price uses the closed-form solution of the GBM SDE:
 
     S_T = S0 * exp((r - sigma^2/2) T + sigma sqrt(T) Z),   Z ~ N(0, 1)
 
-so it takes **one normal draw per simulation, with no loop over days**. Log
-returns are independent Gaussian increments, so 252 daily steps sum to a normal
-with variance `sigma^2 T` -- the same distribution the single draw already
-samples, at 252x the cost. Step through a calendar only for path-dependent
-payoffs (Asian, barrier, lookback), where the path itself is the input.
+so it needs one normal draw per simulation and no loop over days. Daily log
+returns are independent normals, so 252 of them add up to one normal with
+variance `sigma^2 T`. That is the same distribution as the single draw, at 252
+times the cost. Daily steps are only needed when the payoff depends on the
+path (Asian, barrier, lookback options).
 
-The `- sigma^2/2` term is the Ito correction. Drop it and the *median* is still
-right while the mean overshoots by `exp(sigma^2 T / 2)`; keep it and
-`E[S_T] = S0 e^(rT)` holds exactly. That identity is what `--seed 42` above
-checks, and it is why the reported error is quoted in standard errors: at
-100,000 draws the standard error is ~0.067, so a -0.07 miss is noise, whereas a
-consistent +1.0 would mean the correction had been dropped.
+The `- sigma^2/2` term is the Ito correction. Without it the median is still
+right, but the mean is too high by a factor of `exp(sigma^2 T / 2)`. With it,
+`E[S_T] = S0 e^(rT)`. The `--seed 42` run above checks this. The error is also
+given in standard errors: at 100,000 draws one standard error is about 0.067,
+so a miss of -0.07 is noise, but a miss of about +1.0 every time would mean
+the correction is missing.
 
 ## Interactive 3D Greek surfaces
 
 `option_pricer.surface` writes a standalone HTML file: a Greek over
-spot x time-to-expiry, rotatable by dragging, with a volatility slider that
-morphs the surface. Needs numpy, scipy and plotly (`pip install -e ".[sim]"`).
+spot x time-to-expiry that you can rotate, with a volatility slider that
+changes the surface. Needs numpy, scipy and plotly (`pip install -e ".[sim]"`).
 
 ```bash
 greek-surface                                  # gamma, call, -> greek_surface.html
@@ -127,24 +127,21 @@ greek-surface -g vega -o vega.html
 greek-surface -g theta -k put --zscale frame
 ```
 
-Gamma is the striking one: its at-the-money peak sharpens as either volatility
-or time to expiry falls, because gamma scales as `1/(sigma sqrt(T))`.
+Gamma changes the most: its at-the-money peak gets taller and narrower as
+volatility or time to expiry falls, because gamma scales as `1/(sigma sqrt(T))`.
 
-`plotly.js` is inlined, so the file is ~5 MB but needs no network -- open it
-straight from disk, mail it, drop it in a repo.
+`plotly.js` is inside the file, so the file is about 5 MB but works offline.
 
 ### The z-axis choice
 
-By default the z axis and colour range are **pinned across every frame**, so
-peak heights stay comparable as the slider moves. This matters: autoscaling per
-frame would make a surface whose peak drops 4x look completely unchanged, which
-is the entire thing the animation exists to show.
+By default the z axis and colour range are the same in every frame, so peak
+heights can be compared as the slider moves. If each frame were rescaled, a
+peak that drops by 4x would look the same in every frame.
 
-The cost is dynamic range. Gamma at 10% vol is ~4x gamma at 40%, so with the
-axis pinned to the low-vol spike the high-vol frames sit low. That is why the
-default sweep is 10-40% rather than wider -- past ~4x the tall frames flatten
-the rest into sheets. `--zscale frame` rescales each frame instead, and then
-labels both the title and the z axis to say peaks are no longer comparable.
+The downside: gamma at 10% vol is about 4x gamma at 40%, so the high-vol frames
+look low. For this reason the default sweep is 10-40%; a wider sweep makes the
+high-vol frames look flat. `--zscale frame` rescales each frame, and then the
+title and z axis say that peaks can no longer be compared.
 
 ## Module layout
 
@@ -180,7 +177,7 @@ At `T = 0` or `σ = 0` the price collapses to the discounted forward intrinsic
 and the Greeks are reported as zero apart from the step-function delta, since
 gamma and vega are degenerate there.
 
-Note that a European put can trade below `K - S`: exercise cannot be brought
+A European put can trade below `K - S`: exercise cannot be brought
 forward, so the strike is only received at expiry. The enforced lower bound is
 the discounted one, `K·e^(-rT) - S·e^(-qT)`.
 

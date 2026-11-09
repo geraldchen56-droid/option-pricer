@@ -51,7 +51,7 @@ class TestPrice:
             assert pv >= floor - 1e-12
 
     def test_european_put_can_fall_below_spot_intrinsic(self):
-        """Guards the discounting in the branch above -- deep ITM, long dated."""
+        """Checks the discounting in the test above: deep in the money put."""
         pv = price(**{**BASE, "S": 50.0}, kind="put")
         assert pv < BASE["K"] - 50.0
 

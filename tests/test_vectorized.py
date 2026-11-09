@@ -14,7 +14,7 @@ KINDS = ("call", "put")
 
 
 class TestAgreesWithScalar:
-    """The vectorised module duplicates the scalar formulas -- pin them together."""
+    """The vectorised module copies the scalar formulas, so check they agree."""
 
     CASES = list(
         itertools.product(
@@ -113,7 +113,7 @@ class TestVectorizedProperties:
         assert 95.0 < S[np.argmax(gamma)] < 101.0
 
     def test_gamma_peak_sharpens_as_expiry_approaches(self):
-        """The visual point of the surface: shorter expiry, taller narrower peak."""
+        """Shorter expiry gives a taller, narrower gamma peak."""
         S = np.linspace(60.0, 140.0, 321)
         peaks = [
             vec.greeks(S, 100.0, T, 0.05, 0.2, 0.0, "call")["gamma"].max()

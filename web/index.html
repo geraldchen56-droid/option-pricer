@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Root T: pricing an option by simulation</title>
-<meta name="description" content="A visual introduction to Monte Carlo option pricing, in five chapters: random walks, stock prices, averaging payoffs, convergence, and the full price surface against Black–Scholes.">
+<meta name="description" content="A visual introduction to Monte Carlo option pricing, in five chapters: random walks, stock prices, averaging payoffs, convergence, and the full price surface against Black-Scholes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@200;300;400;600&display=swap" rel="stylesheet">
@@ -141,10 +141,10 @@ footer p{margin:0 0 8px;max-width:44rem}
   <h2 id="contents-h">Chapters</h2>
   <ol class="toc">
     <li><a href="#ch1" style="--c:var(--c1)"><span class="n">1</span><b>Random walks</b><small>Why uncertainty grows with the square root of time.</small></a></li>
-    <li><a href="#ch2" style="--c:var(--c2)"><span class="n">2</span><b>Stock prices</b><small>Geometric Brownian motion, and the small correction that keeps its average honest.</small></a></li>
+    <li><a href="#ch2" style="--c:var(--c2)"><span class="n">2</span><b>Stock prices</b><small>Geometric Brownian motion, and the small correction that keeps its average correct.</small></a></li>
     <li><a href="#ch3" style="--c:var(--c3)"><span class="n">3</span><b>Averaging payoffs</b><small>Price a call by simulating its future and averaging what it pays.</small></a></li>
     <li><a href="#ch4" style="--c:var(--c4)"><span class="n">4</span><b>Convergence</b><small>Seven path counts, twenty seeds, and what each extra digit of accuracy costs.</small></a></li>
-    <li><a href="#ch5" style="--c:var(--c5)"><span class="n">5</span><b>The full surface</b><small>800 prices at once, checked against the Black–Scholes formula.</small></a></li>
+    <li><a href="#ch5" style="--c:var(--c5)"><span class="n">5</span><b>The full surface</b><small>800 prices at once, checked against the Black-Scholes formula.</small></a></li>
   </ol>
 </section>
 
@@ -207,7 +207,7 @@ footer p{margin:0 0 8px;max-width:44rem}
         <p class="note">Here S₀ = 100, r = 5%, σ = 20% and T = 1 year. Push the strike up and watch how many paths pay nothing.</p>
       </div>
       <div class="viz">
-        <canvas id="avg" role="img" aria-label="Running Monte Carlo estimate of the call price against the number of paths, converging to the Black–Scholes price"></canvas>
+        <canvas id="avg" role="img" aria-label="Running Monte Carlo estimate of the call price against the number of paths, converging to the Black-Scholes price"></canvas>
         <div class="ctl">
           <button class="act" data-add="10">Add 10 paths</button>
           <button class="act" data-add="1000">Add 1,000</button>
@@ -227,7 +227,7 @@ footer p{margin:0 0 8px;max-width:44rem}
     <div class="ch-head"><span class="n">4</span><h2 id="h4">Convergence</h2></div>
     <div class="ch-body">
       <div class="prose">
-        <p>One run proves little: its error is mostly luck. So price the call at seven path counts from 1,000 to 1,000,000, twenty times each with a different seed, and plot the error on log–log axes.</p>
+        <p>One run proves little: its error is mostly luck. So price the call at seven path counts from 1,000 to 1,000,000, twenty times each with a different seed, and plot the error on log-log axes.</p>
         <div class="eq" data-tex="\text{SE}=\frac{s}{\sqrt N}\quad\Longrightarrow\quad \log \text{SE} = \text{const} - \tfrac12\log N"></div>
         <p>If theory holds, the standard error falls on a line of slope −½, and about 95% of runs catch the true price inside their interval. In the paper this came out at −0.499 and 92.9%.</p>
         <p class="note">Errors here are relative to the price. Try a strike of 140: the option is cheap, few paths pay, and the same number of paths buys far less accuracy.</p>
@@ -258,7 +258,7 @@ footer p{margin:0 0 8px;max-width:44rem}
       <div class="viz">
         <div id="plot"></div>
         <div class="ctl">
-          <span class="field">Show <span class="opts" id="view"><button data-v="mc" aria-pressed="true">Monte Carlo</button><button data-v="bs" aria-pressed="false">Black–Scholes</button><button data-v="diff" aria-pressed="false">Difference</button></span></span>
+          <span class="field">Show <span class="opts" id="view"><button data-v="mc" aria-pressed="true">Monte Carlo</button><button data-v="bs" aria-pressed="false">Black-Scholes</button><button data-v="diff" aria-pressed="false">Difference</button></span></span>
           <span class="field">Paths <span class="opts" id="nsims"><button data-n="10000" aria-pressed="false">10k</button><button data-n="100000" aria-pressed="true">100k</button><button data-n="1000000" aria-pressed="false">1M</button></span></span>
         </div>
         <div class="ctl">
@@ -582,7 +582,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll)
     }
     // BS line
     hline(ctx, L, L + pw, Y(bs), ink, [5, 4]);
-    text(ctx, "Black–Scholes " + fmt(bs, 2), L + pw - 4, Y(bs) - 11, ink, "right", 13, 600);
+    text(ctx, "Black-Scholes " + fmt(bs, 2), L + pw - 4, Y(bs) - 11, ink, "right", 13, 600);
     // estimate
     if (hist.length) {
       ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.beginPath();
@@ -598,7 +598,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll)
     if (!n) { out.textContent = ""; return; }
     const e = est();
     out.innerHTML = `After <b>${n.toLocaleString()}</b> paths the estimate is <b>${fmt(e.m, 3)}</b> ± ${fmt(1.96 * e.se, 3)} (95%). ` +
-      `Black–Scholes says <b>${fmt(bs, 3)}</b>. ${fmt(zeros / n * 100, 0)}% of paths paid nothing.`;
+      `Black-Scholes says <b>${fmt(bs, 3)}</b>. ${fmt(zeros / n * 100, 0)}% of paths paid nothing.`;
   }
   function setBusy(b) {
     busy = b;
@@ -764,7 +764,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll)
       const ink = css("--ink"), rule = css("--rule"), mute = css("--mute"), c5 = colorOf(sec), c1 = css("--c1"), c4 = css("--c4"), soft = css("--soft");
       const isDiff = state.view === "diff";
       const z = state.view === "mc" ? mc : state.view === "bs" ? bsv : diff;
-      const label = { mc: "Monte Carlo", bs: "Black–Scholes", diff: "MC − BS" }[state.view];
+      const label = { mc: "Monte Carlo", bs: "Black-Scholes", diff: "MC - BS" }[state.view];
       const PRICE_SCALE = [[0, rgba(c5, 0.12)], [0.5, rgba(c5, 0.6)], [1, c5]];
       const ERROR_SCALE = [[0, c4], [0.5, soft], [1, c1]];
       const errSpan = Math.max(worst, 1e-6);
@@ -783,7 +783,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll)
         hoverlabel: { font: { family: FONT } },
         scene: {
           xaxis: axis("strike K"), yaxis: axis("years to expiry"),
-          zaxis: Object.assign(axis(isDiff ? "MC − BS" : "call price"), { range: isDiff ? [-DIFF_MAX, DIFF_MAX] : [0, PRICE_MAX] }),
+          zaxis: Object.assign(axis(isDiff ? "MC - BS" : "call price"), { range: isDiff ? [-DIFF_MAX, DIFF_MAX] : [0, PRICE_MAX] }),
           camera: { eye: { x: 1.6, y: -1.6, z: 0.75 } }, aspectmode: "manual", aspectratio: { x: 1.2, y: 1, z: 0.7 }
         },
         uirevision: "keep"
@@ -791,7 +791,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll)
       Plotly.react("plot", [trace], layout, { displaylogo: false, responsive: true, displayModeBar: false });
 
       const se = atm.ses[0], mA = atm.prices[0], gap = mA - bsAtm;
-      $("#surf-out").innerHTML = `At K = 100 and T = 1 year, Monte Carlo gives <b>${fmt(mA, 3)}</b> ± ${fmt(se, 3)} and Black–Scholes gives <b>${fmt(bsAtm, 3)}</b>, ` +
+      $("#surf-out").innerHTML = `At K = 100 and T = 1 year, Monte Carlo gives <b>${fmt(mA, 3)}</b> ± ${fmt(se, 3)} and Black-Scholes gives <b>${fmt(bsAtm, 3)}</b>, ` +
         `${fmt(Math.abs(gap) / se, 2)} standard errors apart. The largest gap anywhere on the grid is ${fmt(worst, 3)}.`;
       status.textContent = `${state.n.toLocaleString()} paths, 800 prices, computed in ${fmt(ms, 0)} ms.`;
     }

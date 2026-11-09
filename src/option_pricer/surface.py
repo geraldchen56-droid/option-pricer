@@ -1,8 +1,8 @@
 """Interactive 3D Greek surfaces over spot x time-to-expiry.
 
 Writes a self-contained HTML file: drag to rotate, slider to sweep volatility.
-The surface deforms as sigma changes -- most dramatically for gamma, whose
-at-the-money peak sharpens as either volatility or time to expiry falls.
+The surface changes shape as sigma changes. Gamma changes the most: its
+at-the-money peak gets taller and narrower as volatility or time to expiry falls.
 
 Requires numpy, scipy and plotly (``pip install -e ".[sim]"``).
 """
@@ -18,8 +18,7 @@ from option_pricer.vectorized import GREEK_NAMES, greeks
 
 __all__ = ["build_surface", "make_figure", "write_surface", "main"]
 
-# Sequential single-hue blue ramp (palette steps 100 -> 700). Magnitude is one
-# quantity, so it gets one hue, light to dark -- never a rainbow.
+# Blues, light (low values) to dark (high values).
 _BLUE_RAMP = (
     "#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7",
     "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b",
@@ -33,8 +32,7 @@ _INK = "#0b0b0b"
 _INK_MUTED = "#52514e"
 _GRID = "#e6e5e1"
 
-# Greeks whose value does not depend on call vs put -- the kind toggle is a
-# no-op for these, which is worth saying rather than letting a user wonder.
+# Gamma and vega are the same for a call and a put, so the plot title says so.
 _KIND_INVARIANT = frozenset({"gamma", "vega"})
 
 _UNITS = {
@@ -62,19 +60,18 @@ def build_surface(
     """Evaluate ``greek`` on a spot x maturity grid, once per volatility.
 
     Returns a dict with the axes, a ``(n_vols, n_time, n_spot)`` stack of
-    surfaces, and the global value range. The stack is built with one
-    vectorised call per volatility -- the scalar pricer would need
-    ``n_vols * n_time * n_spot`` Python-level calls for the same result.
+    surfaces, and the overall min and max. There is one vectorised call per
+    volatility; the scalar pricer would need n_vols * n_time * n_spot calls.
 
-    ``time_range`` deliberately starts above zero: gamma diverges as T -> 0 at
-    the money, so a grid touching expiry would be dominated by one spike.
+    ``time_range`` starts above zero because at the money gamma goes to
+    infinity as T -> 0, and one spike would hide the rest of the surface.
     """
     if greek not in GREEK_NAMES:
         raise ValueError(f"greek must be one of {GREEK_NAMES}, got {greek!r}")
     if vols is None:
-        # 10-40% rather than a wider sweep: gamma scales as 1/(sigma sqrt(T)),
-        # so the tallest frame is sigma_max/sigma_min times the shortest. Past
-        # ~4x the high-vol frames read as flat sheets against a pinned z axis.
+        # Gamma scales as 1/(sigma sqrt(T)), so the tallest frame is
+        # sigma_max/sigma_min times the shortest. With a fixed z axis, a ratio
+        # above about 4 makes the high-vol frames look flat. Hence 10-40%.
         vols = np.round(np.linspace(0.10, 0.40, 21), 4)
     vols = np.asarray(vols, dtype=float)
     if vols.size == 0:
@@ -113,12 +110,11 @@ def make_figure(
     Args:
         data: Output of :func:`build_surface`.
         initial_index: Which volatility frame to open on.
-        zscale: ``"fixed"`` pins the z axis and colour range across every frame,
-            so peak heights are comparable as the slider moves -- the honest
-            default, since autoscaling per frame makes a shrinking peak look
-            unchanged. ``"frame"`` rescales each frame to its own maximum,
-            which reads better for a wide volatility sweep at the cost of that
-            comparability; the axis then carries a warning in its title.
+        zscale: ``"fixed"`` (default) keeps the same z axis and colour range
+            in every frame, so peak heights can be compared. ``"frame"``
+            rescales each frame to its own range, which is easier to read for
+            a wide volatility sweep, but heights can no longer be compared, so
+            the axis title says so.
     """
     import plotly.graph_objects as go
 
@@ -183,18 +179,18 @@ def make_figure(
     )
 
     invariant = (
-        f"  ·  {greek} is identical for calls and puts"
+        f"  |  {greek} is identical for calls and puts"
         if greek in _KIND_INVARIANT
         else ""
     )
     scale_note = (
-        "z-axis fixed across all frames — peak heights are comparable"
+        "z-axis fixed across all frames: peak heights are comparable"
         if zscale == "fixed"
-        else "<b>z-axis rescales per frame — peak heights are NOT comparable</b>"
+        else "<b>z-axis rescales per frame: peak heights are NOT comparable</b>"
     )
     subtitle = (
         f"K={data['K']:g}, r={data['r']:.0%}, q={data['q']:.0%}"
-        f"  ·  {scale_note}{invariant}"
+        f"  |  {scale_note}{invariant}"
     )
     z_range = [zmin, zmax] if zscale == "fixed" else None
     z_title = greek if zscale == "fixed" else f"{greek} (rescaled per frame)"
@@ -202,7 +198,7 @@ def make_figure(
     fig.update_layout(
         title=dict(
             text=(
-                f"<b>{greek.capitalize()} surface</b> — {kind} option"
+                f"<b>{greek.capitalize()} surface</b>, {kind} option"
                 f"<br><span style='font-size:12px;color:{_INK_MUTED}'>{subtitle}</span>"
             ),
             font=dict(color=_INK, size=18),
@@ -266,7 +262,7 @@ def make_figure(
                 xanchor="left",
                 buttons=[
                     dict(
-                        label="▶ sweep",
+                        label="Play",
                         method="animate",
                         args=[
                             None,
@@ -279,7 +275,7 @@ def make_figure(
                         ],
                     ),
                     dict(
-                        label="❚❚ pause",
+                        label="Pause",
                         method="animate",
                         args=[
                             [None],

@@ -1,4 +1,4 @@
-// Root T — pricing engine (port of option_pricer.gbm / monte_carlo / vectorized)
+// Root T pricing engine: JavaScript version of option_pricer.gbm, monte_carlo and vectorized
 (function (global) {
   "use strict";
 
@@ -14,7 +14,7 @@
     };
   }
 
-  // n standard normal draws via Box–Muller, returned SORTED ascending.
+  // n standard normal draws via Box-Muller, returned SORTED ascending.
   // S_T is increasing in Z, so sorting Z once sorts S_T for every sigma and T.
   function sortedNormals(n, seed) {
     const rand = mulberry32(seed);
@@ -76,8 +76,8 @@
       const K = strikes[k];
       const j = upperBound(z, (Math.log(K / S0) - drift) / vol); // first S_T > K
       const cnt = n - j;
-      const sum = suf[j] - K * cnt;                               // Σ (S_T − K)+
-      const sumSq = suf2[j] - 2 * K * suf[j] + K * K * cnt;      // Σ ((S_T − K)+)²
+      const sum = suf[j] - K * cnt;                               // sum of (S_T - K)+
+      const sumSq = suf2[j] - 2 * K * suf[j] + K * K * cnt;      // sum of ((S_T - K)+)^2
       const mean = sum / n;
       const variance = Math.max(sumSq / n - mean * mean, 0) * n / (n - 1);
       prices[k] = disc * mean;
@@ -96,7 +96,7 @@
     return out;
   }
 
-  // Standard normal generator from a seeded uniform source (Box–Muller, both halves used).
+  // Standard normal generator from a seeded uniform source (Box-Muller, both halves used).
   function gaussian(rand) {
     let spare = null;
     return function () {

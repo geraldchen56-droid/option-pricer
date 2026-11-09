@@ -16,7 +16,7 @@ SEED = 20260904
 
 @pytest.fixture(scope="module")
 def samples():
-    """One shared 200k draw -- the statistical assertions below are seeded."""
+    """One seeded 200k sample, shared by the statistical tests below."""
     return simulate_terminal_prices(
         **PARAMS, n_sims=200_000, Z=np.random.default_rng(SEED).standard_normal(200_000)
     )
@@ -46,7 +46,7 @@ class TestSimulate:
         assert (out > 0.0).all()
 
     def test_mean_matches_forward(self, samples):
-        """E[S_T] = S0 e^(rT) -- the Ito correction is what makes this hold."""
+        """E[S_T] = S0 e^(rT). This holds because of the Ito correction."""
         stats = summarise_mean(samples, PARAMS["S0"], PARAMS["r"], PARAMS["T"])
         assert abs(stats["z"]) < 4.0
 
@@ -104,18 +104,17 @@ class TestLognormalPdf:
         assert x[np.argmax(lognormal_pdf(x, **PARAMS))] == pytest.approx(mode, rel=1e-3)
 
     def test_density_matches_histogram(self, samples):
-        """Observed bin counts must sit within sampling error of the density.
+        """Each histogram bin count is within 4 standard errors of the density.
 
-        The pdf is integrated *across* each bin rather than sampled at the
-        centre -- a bin's average density is not its midpoint value, and that
-        curvature bias is comparable to the Monte Carlo noise at this n. Each
-        bin count is then binomial, so 4 standard errors is the bar.
+        The pdf is integrated over each bin, not taken at the bin centre,
+        because at this n the error from using the centre is about as large
+        as the Monte Carlo noise. Each bin count is binomial.
         """
         counts, edges = np.histogram(samples, bins=40, range=(60.0, 160.0))
         n = samples.size
 
         lo, hi = edges[:-1], edges[1:]
-        # 65-point trapezoid per bin, vectorised over all 40 bins at once.
+        # Trapezoid rule with 65 points in each of the 40 bins.
         t = np.linspace(0.0, 1.0, 65)
         grid = lo[:, None] + (hi - lo)[:, None] * t[None, :]
         probs = np.trapezoid(lognormal_pdf(grid, **PARAMS), grid, axis=1)

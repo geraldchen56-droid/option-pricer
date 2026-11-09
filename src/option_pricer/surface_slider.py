@@ -13,11 +13,9 @@ from option_pricer.vectorized import price as bs_price
 def mc_surfaces(S0, r, sigmas, strikes, maturities, n_sims):
     """Monte Carlo call prices for every (sigma, maturity, strike).
 
-    One Z array is drawn here and reused for every sigma and every maturity.
-    That means each frame of the animation sees the same 100,000 "rolls of the
-    dice", so the surface changing between frames is the effect of sigma alone
-    and not fresh noise. Without this the surface would jitter from frame to
-    frame and hide the real trend.
+    One Z array is drawn and reused for every sigma and maturity, so every
+    frame uses the same random draws. Then the change between frames comes
+    from sigma only, not from new noise, and the surface does not jitter.
     """
     Z = np.random.standard_normal(n_sims)
 
@@ -34,8 +32,8 @@ def build_figure(strikes, maturities, sigmas, mc, bs):
     """Three surfaces, buttons to switch, slider to sweep sigma."""
     diff = mc - bs
 
-    # Ranges taken over every frame, then pinned, so a surface that grows with
-    # sigma actually looks like it is growing instead of being rescaled away.
+    # One range for all frames, so a surface that grows with sigma is seen
+    # to grow and is not rescaled back down.
     price_lo = float(min(mc.min(), bs.min()))
     price_hi = float(max(mc.max(), bs.max()))
     err = float(np.abs(diff).max())
@@ -57,8 +55,8 @@ def build_figure(strikes, maturities, sigmas, mc, bs):
 
     start = int(np.argmin(np.abs(sigmas - 0.2)))
 
-    # Frames carry only z, never `visible`, so stepping the slider does not
-    # undo whichever surface the buttons have selected.
+    # Frames only set z (not `visible`), so moving the slider keeps the
+    # surface the buttons selected.
     frames = [
         go.Frame(
             name=f"{s:.2f}",
@@ -79,9 +77,9 @@ def build_figure(strikes, maturities, sigmas, mc, bs):
     fig = go.Figure(data=traces(start), frames=frames)
     fig.update_layout(
         title=dict(
-            text="<b>European call price surface</b> — MC vs Black-Scholes"
+            text="<b>European call price surface</b>: MC vs Black-Scholes"
                  "<br><span style='font-size:12px;color:#52514e'>"
-                 "z-axis pinned across all volatilities · same random draws in every frame"
+                 "z-axis fixed across all volatilities | same random draws in every frame"
                  "</span>",
             font=dict(color=INK, size=18), x=0.02, xanchor="left",
         ),
