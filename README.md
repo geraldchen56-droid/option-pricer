@@ -13,10 +13,14 @@ runtimes depend on your machine.
 
 ```bash
 pip install -e ".[sim]"
-python paper/convergence.py        # Table 1, coverage, slopes -> paper/results/
-python paper/moneyness_hedging.py  # Tables 2 and 3
-python paper/figure1.py            # Figure 1 (run convergence.py first)
+python paper/run_convergence.py    # Table 1, coverage, slopes, Figure 1 -> paper/results/
+python paper/run_surface_hedge.py  # Tables 2 and 3
 ```
+
+The paper cites commit `e19065b`. The tag `paper-v1` marks the code as the
+paper describes it. Runtimes are the one thing that changes from run to run:
+the runtimes in `paper/results/` come from a different run than the
+runtime column of the paper's Table 1, so those numbers differ slightly.
 
 **Live demo: [root-t.vercel.app](https://root-t.vercel.app)** — the Monte Carlo
 vs Black-Scholes price surface with a volatility slider, running in the browser.
@@ -96,7 +100,7 @@ S_T.mean()   # ~= 100 * exp(0.05)
 
 The terminal price uses the closed-form solution of the GBM SDE:
 
-    S_T = S0 * exp((r - q - sigma^2/2) T + sigma sqrt(T) Z),   Z ~ N(0, 1)
+    S_T = S0 * exp((r - sigma^2/2) T + sigma sqrt(T) Z),   Z ~ N(0, 1)
 
 so it takes **one normal draw per simulation, with no loop over days**. Log
 returns are independent Gaussian increments, so 252 daily steps sum to a normal
@@ -106,7 +110,7 @@ payoffs (Asian, barrier, lookback), where the path itself is the input.
 
 The `- sigma^2/2` term is the Ito correction. Drop it and the *median* is still
 right while the mean overshoots by `exp(sigma^2 T / 2)`; keep it and
-`E[S_T] = S0 e^((r-q)T)` holds exactly. That identity is what `--seed 42` above
+`E[S_T] = S0 e^(rT)` holds exactly. That identity is what `--seed 42` above
 checks, and it is why the reported error is quoted in standard errors: at
 100,000 draws the standard error is ~0.067, so a -0.07 miss is noise, whereas a
 consistent +1.0 would mean the correction had been dropped.
@@ -186,8 +190,8 @@ the discounted one, `K·e^(-rT) - S·e^(-qT)`.
 python3 -m pytest
 ```
 
-115 tests: closed-form values against Hull's reference figures, put-call parity
+Known issue: `gbm.py` was simplified after `tests/test_gbm.py` was written, so
+that file still calls the older interface (`rng=`, `q=`) and most of its 24 tests fail.
+The other 91 tests pass: closed-form values against Hull's reference figures, put-call parity
 (with and without dividends), monotonicity, every Greek cross-checked against
-central finite differences, and the degenerate expiry/zero-vol branches. The GBM tests check the
-simulated mean, median, variance, and log-return skew/kurtosis against
-theory, and every histogram bin against its binomial standard error.
+central finite differences, and the degenerate expiry/zero-vol branches.

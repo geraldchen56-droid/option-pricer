@@ -4,68 +4,39 @@ from __future__ import annotations
 
 import argparse
 import math
-from typing import Sequence
 
 import numpy as np
 
-__all__ = [
-    "simulate_terminal_prices",
-    "lognormal_pdf",
-    "summarise_mean",
-    "plot_terminal_distribution",
-    "main",
-]
 
-
-def _validate(S0, sigma, T, n_sims):
-    if n_sims <= 0:
-        raise ValueError(f"n_sims must be positive, got {n_sims}")
-    if S0 < 0.0:
-        raise ValueError(f"spot must be non-negative, got {S0}")
-    if sigma < 0.0:
-        raise ValueError(f"volatility must be non-negative, got {sigma}")
-    if T < 0.0:
-        raise ValueError(f"time to expiry must be non-negative, got {T}")
-
-
-def simulate_terminal_prices(S0, r, sigma, T, n_sims, Z=None, q=0.0, rng=None):
+def simulate_terminal_prices(S0, r, sigma, T, n_sims, Z=None):
     """Simulate n_sims possible prices of the stock at time T.
 
-    S_T = S0 * exp((r - q - sigma^2/2) * T + sigma * sqrt(T) * Z)
+    S_T = S0 * exp((r - sigma^2/2) * T + sigma * sqrt(T) * Z)
 
     Z is a standard normal random number: average 0, standard deviation 1.
     One Z per simulation gives one possible future price.
 
-    Where the random numbers come from, in order of priority:
-      - Z: your own normals. Reusing the same Z across several parameter
-        settings means the differences between the results come from the
-        parameters, not from new randomness.
-      - rng: a numpy Generator, e.g. np.random.default_rng(42), for
-        reproducible draws without touching numpy's global state.
-      - neither: numpy's global generator, so np.random.seed(...) controls it.
+    Pass Z to supply your own random numbers instead of drawing fresh ones.
+    Reusing the same Z across several parameter settings means the differences
+    between the results come from the parameters, not from new randomness.
     """
-    _validate(S0, sigma, T, n_sims)
-
     if Z is None:
-        if rng is not None:
-            Z = rng.standard_normal(n_sims)
-        else:
-            Z = np.random.standard_normal(n_sims)
+        Z = np.random.standard_normal(n_sims)
 
-    drift = (r - q - 0.5 * sigma**2) * T      # the predictable part
-    shock = sigma * math.sqrt(T) * Z          # the random part
+    drift = (r - 0.5 * sigma**2) * T  # the predictable part
+    shock = sigma * math.sqrt(T) * Z  # the random part
 
     return S0 * np.exp(drift + shock)
 
 
-def lognormal_pdf(x, S0, r, sigma, T, q=0.0):
+def lognormal_pdf(x, S0, r, sigma, T):
     """Density of S_T at the prices x (zero for x <= 0).
 
-    log S_T is normal with mean log S0 + (r - q - sigma^2/2) T and standard
+    log S_T is normal with mean log S0 + (r - sigma^2/2) T and standard
     deviation sigma sqrt(T), which makes S_T lognormal.
     """
     x = np.asarray(x, dtype=float)
-    mu = math.log(S0) + (r - q - 0.5 * sigma**2) * T
+    mu = math.log(S0) + (r - 0.5 * sigma**2) * T
     s = sigma * math.sqrt(T)
 
     out = np.zeros_like(x)
@@ -75,16 +46,16 @@ def lognormal_pdf(x, S0, r, sigma, T, q=0.0):
     return out
 
 
-def summarise_mean(samples, S0, r, T, q=0.0):
-    """Compare the simulated mean of S_T with the exact value S0 e^((r-q)T).
+def summarise_mean(samples, S0, r, T):
+    """Compare the simulated mean of S_T with the exact value S0 e^(rT).
 
-    The error is reported in standard errors (z), so a small miss can be told
-    apart from a real problem such as a missing -sigma^2/2 term.
+    The error is also given in standard errors (z), so a small miss from noise
+    can be told apart from a real bug such as a missing -sigma^2/2 term.
     """
     samples = np.asarray(samples, dtype=float)
     n = samples.size
     sample_mean = float(samples.mean())
-    theoretical = S0 * math.exp((r - q) * T)
+    theoretical = S0 * math.exp(r * T)
     error = sample_mean - theoretical
     std_err = float(samples.std(ddof=1) / math.sqrt(n))
 
@@ -99,10 +70,10 @@ def summarise_mean(samples, S0, r, T, q=0.0):
     }
 
 
-def plot_terminal_distribution(samples, S0, r, sigma, T, out_path="gbm_terminal_prices.png", q=0.0, bins=100):
+def plot_terminal_distribution(samples, S0, r, sigma, T, out_path="gbm_terminal_prices.png", bins=100):
     """Histogram of the simulated prices with the exact density on top."""
     import matplotlib
-    matplotlib.use("Agg")  # save to a file instead of opening a window
+    matplotlib.use("Agg")  # write to a file, no window
     import matplotlib.pyplot as plt
 
     samples = np.asarray(samples, dtype=float)
@@ -110,7 +81,7 @@ def plot_terminal_distribution(samples, S0, r, sigma, T, out_path="gbm_terminal_
     ax.hist(samples, bins=bins, density=True, alpha=0.6, label="simulated")
 
     x = np.linspace(samples.min(), samples.max(), 600)
-    ax.plot(x, lognormal_pdf(x, S0, r, sigma, T, q), lw=2, label="lognormal density")
+    ax.plot(x, lognormal_pdf(x, S0, r, sigma, T), lw=2, label="lognormal density")
 
     ax.set_xlabel("terminal price S_T")
     ax.set_ylabel("density")
@@ -122,27 +93,24 @@ def plot_terminal_distribution(samples, S0, r, sigma, T, out_path="gbm_terminal_
     return out_path
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="gbm-demo",
         description="Simulate GBM terminal prices and check the mean against S0 e^(rT).",
     )
     parser.add_argument("-n", "--n-sims", type=int, default=100_000, help="number of simulations")
-    parser.add_argument("--seed", type=int, default=None, help="random seed for reproducible draws")
+    parser.add_argument("--seed", type=int, default=None, help="random seed")
     parser.add_argument("--S0", type=float, default=100.0, help="spot price")
     parser.add_argument("-r", "--rate", type=float, default=0.05, help="risk-free rate")
     parser.add_argument("-v", "--vol", type=float, default=0.2, help="volatility")
     parser.add_argument("-T", "--expiry", type=float, default=1.0, help="years to expiry")
-    parser.add_argument("-q", "--dividend", type=float, default=0.0, help="dividend yield")
     parser.add_argument("--no-plot", action="store_true", help="skip the histogram")
     parser.add_argument("-o", "--out", default="gbm_terminal_prices.png", help="histogram file")
     args = parser.parse_args(argv)
 
-    rng = np.random.default_rng(args.seed)
-    prices = simulate_terminal_prices(
-        args.S0, args.rate, args.vol, args.expiry, args.n_sims, q=args.dividend, rng=rng
-    )
-    s = summarise_mean(prices, args.S0, args.rate, args.expiry, args.dividend)
+    Z = np.random.default_rng(args.seed).standard_normal(args.n_sims)
+    prices = simulate_terminal_prices(args.S0, args.rate, args.vol, args.expiry, args.n_sims, Z=Z)
+    s = summarise_mean(prices, args.S0, args.rate, args.expiry)
 
     print(f"GBM terminal prices  S0={args.S0:g}  r={args.rate:.2%}  sigma={args.vol:.2%}  T={args.expiry:g}y")
     print(f"  simulations           {s['n_sims']:>14,}")
@@ -152,14 +120,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  monte carlo std err   {s['std_err']:>14.6f}  ({s['z']:+.2f} sigma)")
 
     if not args.no_plot:
-        path = plot_terminal_distribution(
-            prices, args.S0, args.rate, args.vol, args.expiry, args.out, args.dividend
-        )
+        path = plot_terminal_distribution(prices, args.S0, args.rate, args.vol, args.expiry, args.out)
         print(f"  histogram saved to    {path}")
     return 0
 
 
-# Only runs when this file is executed directly, not when another module
-# imports simulate_terminal_prices from it.
 if __name__ == "__main__":
     raise SystemExit(main())
