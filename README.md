@@ -190,8 +190,12 @@ the discounted one, `K·e^(-rT) - S·e^(-qT)`.
 python3 -m pytest
 ```
 
-Known issue: `gbm.py` was simplified after `tests/test_gbm.py` was written, so
-that file still calls the older interface (`rng=`, `q=`) and most of its 24 tests fail.
-The other 91 tests pass: closed-form values against Hull's reference figures, put-call parity
+110 tests: closed-form values against Hull's reference figures, put-call parity
 (with and without dividends), monotonicity, every Greek cross-checked against
-central finite differences, and the degenerate expiry/zero-vol branches.
+central finite differences, and the degenerate expiry/zero-vol branches. The GBM
+tests check the simulated mean, median, variance and log-return shape against
+theory, and every histogram bin against its binomial standard error.
+
+`tests/test_gbm.py` was out of date at the paper commit (`paper-v1`), as the
+paper's Limitations section says. It was updated afterwards for the simplified
+`gbm.py`.

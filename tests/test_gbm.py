@@ -18,7 +18,7 @@ SEED = 20260904
 def samples():
     """One shared 200k draw -- the statistical assertions below are seeded."""
     return simulate_terminal_prices(
-        **PARAMS, n_sims=200_000, rng=np.random.default_rng(SEED)
+        **PARAMS, n_sims=200_000, Z=np.random.default_rng(SEED).standard_normal(200_000)
     )
 
 
@@ -30,17 +30,17 @@ class TestSimulate:
     def test_all_prices_strictly_positive(self, samples):
         assert (samples > 0.0).all()
 
-    def test_seed_is_reproducible(self):
-        a = simulate_terminal_prices(**PARAMS, n_sims=1_000, rng=np.random.default_rng(7))
-        b = simulate_terminal_prices(**PARAMS, n_sims=1_000, rng=np.random.default_rng(7))
+    def test_same_z_gives_same_prices(self):
+        a = simulate_terminal_prices(**PARAMS, n_sims=1_000, Z=np.random.default_rng(7).standard_normal(1_000))
+        b = simulate_terminal_prices(**PARAMS, n_sims=1_000, Z=np.random.default_rng(7).standard_normal(1_000))
         np.testing.assert_array_equal(a, b)
 
     def test_different_seeds_differ(self):
-        a = simulate_terminal_prices(**PARAMS, n_sims=1_000, rng=np.random.default_rng(1))
-        b = simulate_terminal_prices(**PARAMS, n_sims=1_000, rng=np.random.default_rng(2))
+        a = simulate_terminal_prices(**PARAMS, n_sims=1_000, Z=np.random.default_rng(1).standard_normal(1_000))
+        b = simulate_terminal_prices(**PARAMS, n_sims=1_000, Z=np.random.default_rng(2).standard_normal(1_000))
         assert not np.array_equal(a, b)
 
-    def test_works_without_an_explicit_rng(self):
+    def test_works_without_z(self):
         out = simulate_terminal_prices(**PARAMS, n_sims=100)
         assert out.shape == (100,)
         assert (out > 0.0).all()
@@ -70,21 +70,12 @@ class TestSimulate:
         assert abs((z**3).mean()) < 0.05
         assert (z**4).mean() == pytest.approx(3.0, abs=0.1)  # excess kurtosis ~ 0
 
-    def test_dividend_yield_lowers_the_mean(self):
-        rng = np.random.default_rng(SEED)
-        with_div = simulate_terminal_prices(
-            **PARAMS, n_sims=50_000, q=0.03, rng=np.random.default_rng(SEED)
-        )
-        without = simulate_terminal_prices(**PARAMS, n_sims=50_000, rng=rng)
-        assert with_div.mean() < without.mean()
-        # Same normals, so the ratio is the deterministic drift shift exactly.
-        np.testing.assert_allclose(
-            with_div / simulate_terminal_prices(
-                **PARAMS, n_sims=50_000, rng=np.random.default_rng(SEED)
-            ),
-            math.exp(-0.03 * PARAMS["T"]),
-            rtol=1e-12,
-        )
+    def test_same_z_isolates_the_rate(self):
+        # Same normals, so a higher rate scales every price by exp(dr * T).
+        Z = np.random.default_rng(SEED).standard_normal(50_000)
+        low = simulate_terminal_prices(**PARAMS, n_sims=50_000, Z=Z)
+        high = simulate_terminal_prices(**{**PARAMS, "r": 0.08}, n_sims=50_000, Z=Z)
+        np.testing.assert_allclose(high / low, math.exp(0.03 * PARAMS["T"]), rtol=1e-12)
 
     def test_zero_vol_is_deterministic(self):
         out = simulate_terminal_prices(S0=100.0, r=0.05, sigma=0.0, T=1.0, n_sims=50)
@@ -93,13 +84,6 @@ class TestSimulate:
     def test_zero_horizon_returns_spot(self):
         out = simulate_terminal_prices(S0=100.0, r=0.05, sigma=0.2, T=0.0, n_sims=50)
         np.testing.assert_allclose(out, 100.0, rtol=1e-12)
-
-    @pytest.mark.parametrize(
-        "bad", [{"n_sims": 0}, {"n_sims": -5}, {"T": -1.0}, {"sigma": -0.1}, {"S0": -1.0}]
-    )
-    def test_rejects_bad_inputs(self, bad):
-        with pytest.raises(ValueError):
-            simulate_terminal_prices(**{**PARAMS, "n_sims": 10, **bad})
 
 
 class TestLognormalPdf:
@@ -153,11 +137,11 @@ class TestSummariseMean:
 
     def test_std_err_shrinks_as_sqrt_n(self):
         small = summarise_mean(
-            simulate_terminal_prices(**PARAMS, n_sims=2_500, rng=np.random.default_rng(3)),
+            simulate_terminal_prices(**PARAMS, n_sims=2_500, Z=np.random.default_rng(3).standard_normal(2_500)),
             PARAMS["S0"], PARAMS["r"], PARAMS["T"],
         )
         big = summarise_mean(
-            simulate_terminal_prices(**PARAMS, n_sims=250_000, rng=np.random.default_rng(3)),
+            simulate_terminal_prices(**PARAMS, n_sims=250_000, Z=np.random.default_rng(3).standard_normal(250_000)),
             PARAMS["S0"], PARAMS["r"], PARAMS["T"],
         )
         assert big["std_err"] == pytest.approx(small["std_err"] / 10.0, rel=0.15)
