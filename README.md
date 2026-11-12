@@ -17,7 +17,7 @@ python paper/run_convergence.py    # Table 1, coverage, slopes, Figure 1 -> pape
 python paper/run_surface_hedge.py  # Tables 2 and 3
 ```
 
-The paper cites commit `e19065b`. The tag `paper-v1` marks the code as the
+The paper cites commit `3e1d93b`. The tag `paper-v1` marks the code as the
 paper describes it. Runtimes are the one thing that changes from run to run:
 the runtimes in `paper/results/` come from a different run than the
 runtime column of the paper's Table 1, so those numbers differ slightly.
